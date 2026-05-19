@@ -1,0 +1,24 @@
+{
+  "name": "wuhao-zhiyuan",
+  "version": "0.1.0",
+  "description": "五好智学｜志愿填报辅助决策系统",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "NODE_ENV=development node src/server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "wuhao",
+    "zhiyuan",
+    "gaokao"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.19.2",
+    "pdfkit": "^0.15.0"
+  },
+  "devDependencies": {}
+}

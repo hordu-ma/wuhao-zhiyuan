@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>五好智学｜志愿填报辅助决策系统</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="五好智学首页">
+        <span class="logo">五</span>
+        <span>
+          <strong>五好智学</strong>
+          <em>志愿填报辅助决策系统</em>
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/assessment/mbti">进入系统</a>
+        <a href="/profile" data-auth-link>个人中心</a>
+        <button class="ghost" data-logout hidden>退出</button>
+      </nav>
+    </header>
+
+    <main id="app"></main>
+
+    <footer class="footer">
+      <section>
+        <h2>五好智学基本理念</h2>
+        <p>围绕好习惯、好方法、好心态、好规划、好未来，帮助学生把分数、兴趣、能力和成长路径放在同一张决策图上。</p>
+      </section>
+      <section>
+        <h2>分支机构联系方式</h2>
+        <div class="campus-grid" data-campus-list></div>
+      </section>
+    </footer>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
