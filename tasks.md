@@ -23,7 +23,7 @@
 - [x] 校区电话和微信信息展示
 - [x] 本地服务启动验证
 - [x] 本地后台进程运行在 `127.0.0.1:18082`
-- [ ] zhiyuan.horsduroot.com 域名反向代理验证
+- [ ] zhiyuan.horsduroot.com 域名反向代理验证：生产 ECS 需 `wuhao-ecs.pem` 登录后配置
 - [x] git add / commit / push
 
 ## 页面结构
@@ -87,8 +87,10 @@
 - 已安装 Node 依赖。
 - 已通过 `setsid env PORT=18082 node src/server.js ...` 启动后台服务。
 - `http://127.0.0.1:18082/` 返回 200。
+- 生产目标机已确认为阿里云 ECS `121.199.173.244`，现有 `horsduroot.com` / `www.horsduroot.com` 运行在该机 Nginx。
 - `zhiyuan.horsduroot.com` 暂未解析，`dig +short zhiyuan.horsduroot.com` 无结果。
-- 当前用户无免密 sudo，无法安装 Nginx/Caddy 或写入系统反代配置。
+- 当前机器未找到 `wuhao-ecs.pem`，只有 `wuhao-tutor.pem`；该 key 无法登录 `121.199.173.244`，SSH 返回 `Permission denied (publickey)`。
+- `wuhao-tutor` 仓库记录生产部署需要 `wuhao-ecs.pem`，需补齐该私钥或在具备该私钥的机器执行部署。
 - 反代配置示例见 `docs/deployment.md`。
 
 ## 回滚方式
