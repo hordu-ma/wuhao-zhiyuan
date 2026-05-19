@@ -5,6 +5,10 @@
 - 应用服务端口：`18082`
 - 本机验证地址：`http://127.0.0.1:18082`
 - 生产目标机：阿里云 ECS `121.199.173.244`，即 `horsduroot.com` / `www.horsduroot.com` 当前所在机器。
+- 生产访问地址：`https://zhiyuan.horsduroot.com`
+- 生产应用目录：`/opt/wuhao-zhiyuan`
+- 生产环境文件：`/etc/wuhao-zhiyuan.env`
+- 生产 systemd 服务：`wuhao-zhiyuan.service`
 - 后台启动命令：
 
 ```bash
@@ -54,17 +58,21 @@ HTTPS 可使用 certbot 或现有证书系统补齐。
 </VirtualHost>
 ```
 
-## 当前阻塞
+## 生产结果
 
-- `zhiyuan.horsduroot.com` 当前 DNS 未解析，`dig +short zhiyuan.horsduroot.com` 无结果。
-- `horsduroot.com` 和 `www.horsduroot.com` 当前解析到 `121.199.173.244`。
-- `wuhao-tutor` 仓库记录生产部署依赖本机 SSH alias `wuhao-tutor-ecs` 和私钥 `wuhao-ecs.pem`。
-- 当前机器只有 `/home/pgx/asset-base/internal/五好爱学/wuhao-tutor.pem`，该 key 对 `root@121.199.173.244`、`ubuntu@121.199.173.244`、`ecs-user@121.199.173.244` 等常见用户均返回 `Permission denied (publickey)`。
-- 当前机器未找到 `wuhao-ecs.pem` 或阿里云 CLI 凭据，因此无法完成生产 ECS 登录和反代写入。
+- 已使用 `~/Downloads/wuhao-ecs.pem` 登录生产 ECS。
+- 已安装独立 Node 20 到 `/opt/node-v20`。
+- 已同步应用到 `/opt/wuhao-zhiyuan` 并安装生产依赖。
+- 已从 `/opt/wuhao-tutor/.env.production` 提取百炼 API key，写入 `/etc/wuhao-zhiyuan.env`。
+- 已创建 `wuhao-zhiyuan.service`，服务状态为 `active` / `enabled`。
+- 已通过 AliDNS API 创建 `zhiyuan.horsduroot.com` A 记录，指向 `121.199.173.244`。
+- 已申请 Let's Encrypt 证书，证书路径为 `/etc/letsencrypt/live/zhiyuan.horsduroot.com/fullchain.pem`。
+- 已配置 Nginx，HTTP 跳转 HTTPS，HTTPS 反代 `127.0.0.1:18082`。
+- 已完成公网 HTTPS 冒烟验证：注册、MBTI、DashScope 对话、PDF 下载均成功。
 
 ## 生产部署命令
 
-拿到 `wuhao-ecs.pem` 后，可在本机添加 SSH 配置：
+可在本机添加 SSH 配置：
 
 ```sshconfig
 Host wuhao-tutor-ecs
@@ -74,36 +82,17 @@ Host wuhao-tutor-ecs
     IdentitiesOnly yes
 ```
 
-然后执行：
+常用维护命令：
 
 ```bash
-ssh wuhao-tutor-ecs 'mkdir -p /opt/wuhao-zhiyuan'
-ssh wuhao-tutor-ecs 'test -d /opt/wuhao-zhiyuan/.git || git clone git@github.com:hordu-ma/wuhao-zhiyuan.git /opt/wuhao-zhiyuan'
-ssh wuhao-tutor-ecs 'cd /opt/wuhao-zhiyuan && git pull --ff-only && npm install --omit=dev'
-ssh wuhao-tutor-ecs 'cat >/etc/systemd/system/wuhao-zhiyuan.service <<EOF
-[Unit]
-Description=Wuhao Zhiyuan decision assistant
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/wuhao-zhiyuan
-Environment=NODE_ENV=production
-Environment=PORT=18082
-ExecStart=/usr/bin/node /opt/wuhao-zhiyuan/src/server.js
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-systemctl daemon-reload
-systemctl enable --now wuhao-zhiyuan'
+ssh wuhao-tutor-ecs 'systemctl status wuhao-zhiyuan --no-pager'
+ssh wuhao-tutor-ecs 'journalctl -u wuhao-zhiyuan -n 100 --no-pager'
+ssh wuhao-tutor-ecs 'nginx -t && systemctl reload nginx'
 ```
 
-部署后验证：
+部署后验证命令：
 
 ```bash
 ssh wuhao-tutor-ecs 'curl -sf http://127.0.0.1:18082/ >/dev/null && echo app_ok'
-curl -I -H 'Host: zhiyuan.horsduroot.com' http://121.199.173.244/
+curl -I https://zhiyuan.horsduroot.com/
 ```

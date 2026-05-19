@@ -23,7 +23,7 @@
 - [x] 校区电话和微信信息展示
 - [x] 本地服务启动验证
 - [x] 本地后台进程运行在 `127.0.0.1:18082`
-- [ ] zhiyuan.horsduroot.com 域名反向代理验证：生产 ECS 需 `wuhao-ecs.pem` 登录后配置
+- [x] zhiyuan.horsduroot.com 域名反向代理验证
 - [x] git add / commit / push
 
 ## 页面结构
@@ -88,10 +88,14 @@
 - 已通过 `setsid env PORT=18082 node src/server.js ...` 启动后台服务。
 - `http://127.0.0.1:18082/` 返回 200。
 - 生产目标机已确认为阿里云 ECS `121.199.173.244`，现有 `horsduroot.com` / `www.horsduroot.com` 运行在该机 Nginx。
-- `zhiyuan.horsduroot.com` 暂未解析，`dig +short zhiyuan.horsduroot.com` 无结果。
-- 当前机器未找到 `wuhao-ecs.pem`，只有 `wuhao-tutor.pem`；该 key 无法登录 `121.199.173.244`，SSH 返回 `Permission denied (publickey)`。
-- `wuhao-tutor` 仓库记录生产部署需要 `wuhao-ecs.pem`，需补齐该私钥或在具备该私钥的机器执行部署。
-- 反代配置示例见 `docs/deployment.md`。
+- 已使用 `~/Downloads/wuhao-ecs.pem` 登录生产 ECS 并部署到 `/opt/wuhao-zhiyuan`。
+- 已安装独立 Node 20 到 `/opt/node-v20`，避免依赖系统 Node 12。
+- 已创建 systemd 服务 `wuhao-zhiyuan.service`，状态 `active` / `enabled`。
+- 已从 `/opt/wuhao-tutor/.env.production` 读取百炼 API key，写入 `/etc/wuhao-zhiyuan.env`，不进入仓库。
+- 已通过 AliDNS API 创建 `zhiyuan.horsduroot.com -> 121.199.173.244` A 记录。
+- 已为 `zhiyuan.horsduroot.com` 申请 Let's Encrypt 证书，证书有效期至 2026-08-17，并启用自动续期。
+- 已配置 Nginx：HTTP 自动跳转 HTTPS，HTTPS 反代到 `127.0.0.1:18082`。
+- 已完成公网 HTTPS 冒烟：注册、MBTI、DashScope 对话、PDF 下载均成功。
 
 ## 回滚方式
 
