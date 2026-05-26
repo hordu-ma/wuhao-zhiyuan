@@ -58,7 +58,7 @@ test("supports the main user flow and admin summary", async () => {
       [
         {
           name: "五好生涯青州咨询中心",
-          phone: "15689896888",
+          phone: "18888333726",
           wechat: "lixuwei-",
           address: "潍坊青州市海岱中路2426号",
         },

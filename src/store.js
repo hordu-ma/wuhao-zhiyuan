@@ -16,7 +16,7 @@ const initialStore = {
     {
       id: "wuhao-career-qingzhou",
       name: "五好生涯青州咨询中心",
-      phone: "15689896888",
+      phone: "18888333726",
       wechat: "lixuwei-",
       address: "潍坊青州市海岱中路2426号",
       serviceArea: "高考志愿初评、报告解读、人工复核预约",
