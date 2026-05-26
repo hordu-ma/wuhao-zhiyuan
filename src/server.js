@@ -90,6 +90,41 @@ function toLeadRows(store) {
   });
 }
 
+function userById(store) {
+  return new Map(store.users.map((user) => [user.id, user]));
+}
+
+function exportUser(user) {
+  if (!user) return {};
+  const { passwordHash, ...safeUser } = user;
+  return safeUser;
+}
+
+function csvEscape(value) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function sendCsv(res, headers, rows) {
+  const csv = [headers.join(","), ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(","))].join("\n");
+  res.type("text/csv").send(csv);
+}
+
+function createFullExport(store) {
+  return {
+    generatedAt: new Date().toISOString(),
+    stats: createStats(store),
+    users: store.users.map(exportUser),
+    mbtiResults: store.mbtiResults,
+    chatSessions: store.chatSessions,
+    reports: store.reports.map((report) => ({
+      ...report,
+      downloadUrl: `/reports/${report.id}.pdf`,
+    })),
+    events: store.events,
+    campuses: store.campuses,
+  };
+}
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.SESSION_SECRET || "dev-session-secret"));
@@ -341,32 +376,114 @@ app.get("/api/admin/leads.csv", requireAdmin, (req, res) => {
   const store = readStore();
   const rows = toLeadRows(store);
   const headers = ["name", "gender", "phone", "source", "createdAt", "mbti", "reports", "province", "subjects", "score", "rank", "targetCities", "majorInterests", "budget", "acceptance"];
-  const escape = (value) => `"${String(value || "").replaceAll('"', '""')}"`;
-  const csv = [
-    headers.join(","),
-    ...rows.map((row) =>
-      [
-        row.name,
-        row.gender,
-        row.phone,
-        row.source,
-        row.createdAt,
-        row.mbti,
-        row.reports,
-        row.profile.province,
-        row.profile.subjects,
-        row.profile.score,
-        row.profile.rank,
-        row.profile.targetCities,
-        row.profile.majorInterests,
-        row.profile.budget,
-        row.profile.acceptance,
-      ]
-        .map(escape)
-        .join(",")
-    ),
-  ].join("\n");
-  res.type("text/csv").send(csv);
+  sendCsv(
+    res,
+    headers,
+    rows.map((row) => ({
+      name: row.name,
+      gender: row.gender,
+      phone: row.phone,
+      source: row.source,
+      createdAt: row.createdAt,
+      mbti: row.mbti,
+      reports: row.reports,
+      province: row.profile.province,
+      subjects: row.profile.subjects,
+      score: row.profile.score,
+      rank: row.profile.rank,
+      targetCities: row.profile.targetCities,
+      majorInterests: row.profile.majorInterests,
+      budget: row.profile.budget,
+      acceptance: row.profile.acceptance,
+    }))
+  );
+});
+
+app.get("/api/admin/mbti.csv", requireAdmin, (req, res) => {
+  const store = readStore();
+  const users = userById(store);
+  const headers = ["mbtiId", "userId", "name", "gender", "phone", "source", "province", "subjects", "score", "rank", "type", "scoreE", "scoreI", "scoreS", "scoreN", "scoreT", "scoreF", "scoreJ", "scoreP", "summary", "createdAt"];
+  sendCsv(
+    res,
+    headers,
+    store.mbtiResults.map((mbti) => {
+      const user = users.get(mbti.userId) || {};
+      const profile = user.studentProfile || {};
+      return {
+        mbtiId: mbti.id,
+        userId: mbti.userId,
+        name: user.name,
+        gender: user.gender,
+        phone: user.phone,
+        source: user.source,
+        province: profile.province,
+        subjects: profile.subjects,
+        score: profile.score,
+        rank: profile.rank,
+        type: mbti.type,
+        scoreE: mbti.scores?.E,
+        scoreI: mbti.scores?.I,
+        scoreS: mbti.scores?.S,
+        scoreN: mbti.scores?.N,
+        scoreT: mbti.scores?.T,
+        scoreF: mbti.scores?.F,
+        scoreJ: mbti.scores?.J,
+        scoreP: mbti.scores?.P,
+        summary: mbti.summary,
+        createdAt: mbti.createdAt,
+      };
+    })
+  );
+});
+
+app.get("/api/admin/chats.csv", requireAdmin, (req, res) => {
+  const store = readStore();
+  const users = userById(store);
+  const headers = ["sessionId", "userId", "name", "phone", "source", "sessionCreatedAt", "messageCreatedAt", "role", "messageSource", "content"];
+  const rows = store.chatSessions.flatMap((session) => {
+    const user = users.get(session.userId) || {};
+    return (session.messages || []).map((message) => ({
+      sessionId: session.id,
+      userId: session.userId,
+      name: user.name,
+      phone: user.phone,
+      source: user.source,
+      sessionCreatedAt: session.createdAt,
+      messageCreatedAt: message.createdAt,
+      role: message.role,
+      messageSource: message.source || "",
+      content: message.content,
+    }));
+  });
+  sendCsv(res, headers, rows);
+});
+
+app.get("/api/admin/reports.csv", requireAdmin, (req, res) => {
+  const store = readStore();
+  const users = userById(store);
+  const headers = ["reportId", "userId", "name", "phone", "source", "chatSessionId", "mbtiId", "downloadUrl", "createdAt"];
+  sendCsv(
+    res,
+    headers,
+    store.reports.map((report) => {
+      const user = users.get(report.userId) || {};
+      return {
+        reportId: report.id,
+        userId: report.userId,
+        name: user.name,
+        phone: user.phone,
+        source: user.source,
+        chatSessionId: report.chatSessionId,
+        mbtiId: report.mbtiId,
+        downloadUrl: `/reports/${report.id}.pdf`,
+        createdAt: report.createdAt,
+      };
+    })
+  );
+});
+
+app.get("/api/admin/export.json", requireAdmin, (req, res) => {
+  res.json(createFullExport(readStore()));
 });
 
 app.post("/api/admin/backup", requireAdmin, (req, res) => {

@@ -73,6 +73,7 @@ npm run dev
 
 - [x] 增加简单管理入口 `/admin`，查看用户、测评、对话、报告和联系方式。
 - [x] 支持导出潜在客户列表 CSV：`/api/admin/leads.csv`。
+- [x] 支持导出 MBTI、AI 对话、报告记录 CSV 与完整运营分析 JSON。
 - [x] 增加来源渠道参数记录：`source`、`utm_source`、`campus`。
 - [x] 统计注册数、完测数、报告生成数、咨询转化线索数。
 
@@ -80,9 +81,9 @@ npm run dev
 
 - `campus-config`：默认咨询点可用，真实电话、微信、地址可通过 `CAMPUS_CONFIG_JSON` 覆盖。
 - `mock-ai`：无 API key 时使用本地规则回复，只适合开发与兜底。
-- `json-store`：生产仍使用本地 JSON 文件，已增加备份接口，后续可迁移数据库。
+- `json-store`：生产仍使用本地 JSON 文件，已增加备份与运营分析导出接口；暂不迁移 PostgreSQL，后续用户量增长后再迁移数据库。
 - `brand-assets`：当前使用文字品牌标识，后续可替换正式图片 logo。
-- `route-tests`：已覆盖主流程、认证失败、未登录保护、后台令牌失败、线索 CSV、备份接口和登录限流分支。
+- `route-tests`：已覆盖主流程、认证失败、未登录保护、后台令牌失败、线索/MBTI/对话/报告/JSON 导出、备份接口和登录限流分支。
 
 ## 7. 环境变量
 

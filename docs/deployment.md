@@ -108,6 +108,25 @@ curl -I https://zhiyuan.horsduroot.com/
 - 后台备份接口：`POST /api/admin/backup`，请求头 `x-admin-token: <ADMIN_TOKEN>`
 - 备份输出目录：`data/backups/`
 
+## 数据导出
+
+以下接口均需要请求头 `x-admin-token: <ADMIN_TOKEN>`：
+
+- `GET /api/admin/leads.csv`：线索、分数、位次、目标城市、专业偏好等汇总。
+- `GET /api/admin/mbti.csv`：MBTI 类型、8 个维度分数、用户基础画像。
+- `GET /api/admin/chats.csv`：AI 对话消息与填报建议全文，包含回复来源。
+- `GET /api/admin/reports.csv`：PDF 报告生成记录与下载路径。
+- `GET /api/admin/export.json`：完整运营分析 JSON，不包含密码哈希和登录 session。
+
+示例：
+
+```bash
+ssh -i ~/Downloads/wuhao-ecs.pem root@121.199.173.244 \
+  'TOKEN=$(grep "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env | cut -d= -f2-); \
+  curl -fsS -H "x-admin-token: ${TOKEN}" http://127.0.0.1:18082/api/admin/export.json \
+  > /tmp/wuhao-zhiyuan-export.json'
+```
+
 ### 备份演练记录
 
 - 2026-05-26：已在生产机通过后台备份接口生成 `data/backups/store-2026-05-26T06-07-55-555Z.json`。

@@ -34,3 +34,8 @@ http://127.0.0.1:18082
 - `/profile`：个人中心与历史报告
 - `/admin`：运营后台，依赖 `ADMIN_TOKEN`
 - `/healthz`：健康检查
+- `/api/admin/leads.csv`：线索 CSV 导出
+- `/api/admin/mbti.csv`：MBTI 测评结果 CSV 导出
+- `/api/admin/chats.csv`：AI 对话与填报建议 CSV 导出
+- `/api/admin/reports.csv`：报告生成记录 CSV 导出
+- `/api/admin/export.json`：去除密码哈希和登录 session 后的完整运营分析 JSON 导出

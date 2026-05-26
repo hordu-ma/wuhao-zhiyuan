@@ -129,6 +129,40 @@ test("supports the main user flow and admin summary", async () => {
     assert.equal(admin.response.status, 200);
     assert.equal(admin.data.stats.users, 1);
     assert.equal(admin.data.stats.reports, 1);
+
+    const mbtiCsvResponse = await fetch(`${baseUrl}/api/admin/mbti.csv`, {
+      headers: { "x-admin-token": "test-admin-token" },
+    });
+    const mbtiCsv = await mbtiCsvResponse.text();
+    assert.equal(mbtiCsvResponse.status, 200);
+    assert.match(mbtiCsv, /^mbtiId,userId,name,gender,phone,source,province,subjects,score,rank,type,/);
+    assert.match(mbtiCsv, /"测试学生","男","13900000001"/);
+
+    const chatsCsvResponse = await fetch(`${baseUrl}/api/admin/chats.csv`, {
+      headers: { "x-admin-token": "test-admin-token" },
+    });
+    const chatsCsv = await chatsCsvResponse.text();
+    assert.equal(chatsCsvResponse.status, 200);
+    assert.match(chatsCsv, /^sessionId,userId,name,phone,source,sessionCreatedAt,messageCreatedAt,role,messageSource,content/);
+    assert.match(chatsCsv, /"测试学生","13900000001"/);
+    assert.match(chatsCsv, /"mock-ai"/);
+
+    const reportsCsvResponse = await fetch(`${baseUrl}/api/admin/reports.csv`, {
+      headers: { "x-admin-token": "test-admin-token" },
+    });
+    const reportsCsv = await reportsCsvResponse.text();
+    assert.equal(reportsCsvResponse.status, 200);
+    assert.match(reportsCsv, /^reportId,userId,name,phone,source,chatSessionId,mbtiId,downloadUrl,createdAt/);
+    assert.match(reportsCsv, /"\/reports\/report_/);
+
+    const fullExport = await request(baseUrl, "/api/admin/export.json", {
+      headers: { "x-admin-token": "test-admin-token" },
+    });
+    assert.equal(fullExport.response.status, 200);
+    assert.equal(fullExport.data.stats.reports, 1);
+    assert.equal(fullExport.data.users[0].passwordHash, undefined);
+    assert.equal(fullExport.data.sessions, undefined);
+    assert.equal(fullExport.data.chatSessions[0].messages.some((message) => message.source === "mock-ai"), true);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
