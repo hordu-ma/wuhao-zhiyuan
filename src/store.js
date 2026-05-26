@@ -1,8 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 
-const dataDir = path.join(__dirname, "..", "data");
+const dataDir = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 const storePath = path.join(dataDir, "store.json");
+const backupDir = path.join(dataDir, "backups");
 
 const initialStore = {
   users: [],
@@ -10,30 +11,49 @@ const initialStore = {
   mbtiResults: [],
   chatSessions: [],
   reports: [],
+  events: [],
   campuses: [
     {
-      id: "mock-campus-jinan",
-      name: "济南校区",
-      phone: "0531-0000-0001",
-      wechat: "wuhao-jinan",
-      address: "待补充",
+      id: "wuhao-career-online",
+      name: "五好生涯线上咨询中心",
+      phone: "请在客服微信预约",
+      wechat: "wuhao-shengya",
+      address: "线上咨询服务",
+      serviceArea: "高考志愿初评、报告解读、人工复核预约",
     },
     {
-      id: "mock-campus-qingdao",
-      name: "青岛校区",
-      phone: "0532-0000-0002",
-      wechat: "wuhao-qingdao",
-      address: "待补充",
-    },
-    {
-      id: "mock-campus-online",
-      name: "线上咨询中心",
-      phone: "400-000-0529",
-      wechat: "wuhao-zhixue",
-      address: "线上服务",
+      id: "wuhao-career-jinan",
+      name: "五好生涯济南咨询点",
+      phone: "请在客服微信预约",
+      wechat: "wuhao-shengya",
+      address: "山东济南，详细到访地址预约后确认",
+      serviceArea: "山东考生志愿填报、专业选择、生涯规划",
     },
   ],
 };
+
+function parseCampuses() {
+  if (!process.env.CAMPUS_CONFIG_JSON) return initialStore.campuses;
+  try {
+    const campuses = JSON.parse(process.env.CAMPUS_CONFIG_JSON);
+    if (Array.isArray(campuses) && campuses.length) return campuses;
+  } catch (error) {
+    console.error("Invalid CAMPUS_CONFIG_JSON:", error.message);
+  }
+  return initialStore.campuses;
+}
+
+function normalizeStore(data) {
+  const normalized = { ...initialStore, ...data };
+  normalized.users = Array.isArray(normalized.users) ? normalized.users : [];
+  normalized.sessions = Array.isArray(normalized.sessions) ? normalized.sessions : [];
+  normalized.mbtiResults = Array.isArray(normalized.mbtiResults) ? normalized.mbtiResults : [];
+  normalized.chatSessions = Array.isArray(normalized.chatSessions) ? normalized.chatSessions : [];
+  normalized.reports = Array.isArray(normalized.reports) ? normalized.reports : [];
+  normalized.events = Array.isArray(normalized.events) ? normalized.events : [];
+  normalized.campuses = parseCampuses();
+  return normalized;
+}
 
 function ensureStore() {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -44,7 +64,7 @@ function ensureStore() {
 
 function readStore() {
   ensureStore();
-  return JSON.parse(fs.readFileSync(storePath, "utf8"));
+  return normalizeStore(JSON.parse(fs.readFileSync(storePath, "utf8")));
 }
 
 function writeStore(data) {
@@ -59,4 +79,13 @@ function updateStore(mutator) {
   return result;
 }
 
-module.exports = { readStore, writeStore, updateStore, storePath };
+function backupStore() {
+  ensureStore();
+  fs.mkdirSync(backupDir, { recursive: true });
+  const stamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
+  const backupPath = path.join(backupDir, `store-${stamp}.json`);
+  fs.copyFileSync(storePath, backupPath);
+  return backupPath;
+}
+
+module.exports = { readStore, writeStore, updateStore, backupStore, storePath, backupDir };

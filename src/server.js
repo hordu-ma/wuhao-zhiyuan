@@ -1,7 +1,7 @@
 const path = require("path");
 const express = require("express");
 const cookieParser = require("cookie-parser");
-const { readStore, writeStore, updateStore } = require("./store");
+const { readStore, writeStore, updateStore, backupStore, storePath, backupDir } = require("./store");
 const { questions, scoreMbti } = require("./mbti");
 const { buildSystemPrompt, callDashScope, mockReply } = require("./ai");
 const { generateReport, reportDir } = require("./report");
@@ -9,10 +9,96 @@ const { hashPassword, verifyPassword, id, createSession, clearSession, getCurren
 
 const app = express();
 const port = Number(process.env.PORT || 18082);
+const startedAt = new Date().toISOString();
+const rateBuckets = new Map();
+
+function sanitizeText(value, maxLength = 120) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function sanitizeStudentProfile(body = {}) {
+  return {
+    province: sanitizeText(body.province, 20),
+    subjects: sanitizeText(body.subjects, 40),
+    score: sanitizeText(body.score, 20),
+    rank: sanitizeText(body.rank, 30),
+    targetCities: sanitizeText(body.targetCities, 80),
+    majorInterests: sanitizeText(body.majorInterests, 120),
+    budget: sanitizeText(body.budget, 80),
+    acceptance: sanitizeText(body.acceptance, 80),
+  };
+}
+
+function compactProfile(profile = {}) {
+  return Object.fromEntries(Object.entries(profile).filter(([, value]) => value));
+}
+
+function getSource(req) {
+  return sanitizeText(req.query.source || req.query.utm_source || req.query.campus || req.cookies?.wuhao_source, 80);
+}
+
+function rateLimit({ windowMs, max, keyPrefix }) {
+  return (req, res, next) => {
+    const key = `${keyPrefix}:${req.ip}`;
+    const now = Date.now();
+    const bucket = rateBuckets.get(key) || { count: 0, resetAt: now + windowMs };
+    if (bucket.resetAt <= now) {
+      bucket.count = 0;
+      bucket.resetAt = now + windowMs;
+    }
+    bucket.count += 1;
+    rateBuckets.set(key, bucket);
+    if (bucket.count > max) return res.status(429).json({ error: "请求过于频繁，请稍后再试" });
+    next();
+  };
+}
+
+function requireAdmin(req, res, next) {
+  const token = process.env.ADMIN_TOKEN;
+  if (!token) return res.status(503).json({ error: "未配置 ADMIN_TOKEN，后台不可用" });
+  const provided = req.get("x-admin-token") || req.query.token;
+  if (provided !== token) return res.status(401).json({ error: "后台访问令牌无效" });
+  next();
+}
+
+function createStats(store) {
+  return {
+    users: store.users.length,
+    mbtiResults: store.mbtiResults.length,
+    chatSessions: store.chatSessions.length,
+    reports: store.reports.length,
+    leads: store.users.filter((user) => user.phone).length,
+    completedProfiles: store.users.filter((user) => Object.keys(compactProfile(user.studentProfile || {})).length >= 5).length,
+  };
+}
+
+function toLeadRows(store) {
+  return store.users.map((user) => {
+    const mbti = store.mbtiResults.filter((item) => item.userId === user.id).at(-1);
+    const reports = store.reports.filter((item) => item.userId === user.id);
+    return {
+      id: user.id,
+      name: user.name,
+      gender: user.gender,
+      phone: user.phone,
+      source: user.source || "",
+      createdAt: user.createdAt,
+      mbti: mbti?.type || "",
+      reports: reports.length,
+      profile: user.studentProfile || {},
+    };
+  });
+}
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.SESSION_SECRET || "dev-session-secret"));
+app.set("trust proxy", 1);
+app.use((req, res, next) => {
+  const source = getSource(req);
+  if (source) res.cookie("wuhao_source", source, { sameSite: "lax", maxAge: 1000 * 60 * 60 * 24 * 30 });
+  next();
+});
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 function requireUser(req, res, next) {
@@ -24,6 +110,10 @@ function requireUser(req, res, next) {
   next();
 }
 
+app.get("/healthz", (req, res) => {
+  res.json({ ok: true, service: "wuhao-zhiyuan", startedAt, storePath });
+});
+
 app.get("/api/me", (req, res) => {
   const store = readStore();
   const user = getCurrentUser(req, store);
@@ -32,16 +122,18 @@ app.get("/api/me", (req, res) => {
   res.json({ user: publicUser(user), mbti, reports });
 });
 
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: "register" }), (req, res) => {
   const phone = String(req.body.phone || "").trim();
   const password = String(req.body.password || "");
   const name = String(req.body.name || "").trim();
   const gender = String(req.body.gender || "").trim();
+  const privacyConsent = req.body.privacyConsent === true || req.body.privacyConsent === "on" || req.body.privacyConsent === "true";
 
   if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: "请输入 11 位手机号" });
   if (password.length < 6) return res.status(400).json({ error: "密码至少 6 位" });
   if (!name) return res.status(400).json({ error: "请输入姓名" });
   if (!gender) return res.status(400).json({ error: "请选择性别" });
+  if (!privacyConsent) return res.status(400).json({ error: "请先确认隐私与服务提示" });
 
   const result = updateStore((store) => {
     if (store.users.some((item) => item.phone === phone)) {
@@ -53,6 +145,9 @@ app.post("/api/auth/register", (req, res) => {
       passwordHash: hashPassword(password),
       name,
       gender,
+      source: getSource(req),
+      privacyConsentAt: new Date().toISOString(),
+      studentProfile: compactProfile(sanitizeStudentProfile(req.body)),
       createdAt: new Date().toISOString(),
     };
     store.users.push(user);
@@ -64,7 +159,7 @@ app.post("/api/auth/register", (req, res) => {
   res.json(result);
 });
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 40, keyPrefix: "login" }), (req, res) => {
   const phone = String(req.body.phone || "").trim();
   const password = String(req.body.password || "");
 
@@ -94,6 +189,17 @@ app.get("/api/campuses", (req, res) => {
   res.json({ campuses: readStore().campuses });
 });
 
+app.post("/api/profile/student", requireUser, (req, res) => {
+  const studentProfile = compactProfile(sanitizeStudentProfile(req.body));
+  const result = updateStore((store) => {
+    const user = store.users.find((item) => item.id === req.user.id);
+    user.studentProfile = { ...(user.studentProfile || {}), ...studentProfile };
+    user.updatedAt = new Date().toISOString();
+    return publicUser(user);
+  });
+  res.json({ user: result });
+});
+
 app.get("/api/mbti/questions", (req, res) => {
   res.json({
     questions: questions.map(([dimension, text], index) => ({ id: index, dimension, text })),
@@ -117,12 +223,19 @@ app.post("/api/mbti/submit", requireUser, (req, res) => {
       createdAt: new Date().toISOString(),
     };
     store.mbtiResults.push(mbti);
+    store.events.push({ type: "mbti_submitted", userId: req.user.id, mbtiId: mbti.id, createdAt: mbti.createdAt });
     return mbti;
   });
   res.json({ mbti: result });
 });
 
-app.post("/api/chat/message", requireUser, async (req, res) => {
+function openingMessage(user, mbti) {
+  const profile = user.studentProfile || {};
+  const known = [profile.province, profile.subjects, profile.score, profile.rank].filter(Boolean).join("，");
+  return `你好，${user.name}。我已经读取到你的 MBTI 倾向为 ${mbti.type}${known ? `，并看到你已填写：${known}` : ""}。请补充或确认考生省份、选科组合、总分、各科分数、位次、目标城市、专业兴趣、家庭预算，以及是否接受民办或中外合作。`;
+}
+
+app.post("/api/chat/message", requireUser, rateLimit({ windowMs: 60 * 1000, max: 12, keyPrefix: "chat" }), async (req, res) => {
   const content = String(req.body.message || "").trim();
   if (!content) return res.status(400).json({ error: "请输入对话内容" });
 
@@ -139,7 +252,7 @@ app.post("/api/chat/message", requireUser, async (req, res) => {
         messages: [
           {
             role: "assistant",
-            content: `你好，${req.user.name}。我已经读取到你的 MBTI 倾向为 ${mbti.type}。请先提供考生所在省份、选科组合、总分、各科分数、位次、目标城市、专业兴趣、家庭预算，以及是否接受民办或中外合作。`,
+            content: openingMessage(req.user, mbti),
             createdAt: new Date().toISOString(),
           },
         ],
@@ -177,7 +290,7 @@ app.get("/api/chat/current", requireUser, (req, res) => {
         messages: [
           {
             role: "assistant",
-            content: `你好，${req.user.name}。我已经读取到你的 MBTI 倾向为 ${mbti.type}。请先提供考生所在省份、选科组合、总分、各科分数、位次、目标城市、专业兴趣、家庭预算，以及是否接受民办或中外合作。`,
+            content: openingMessage(req.user, mbti),
             createdAt: new Date().toISOString(),
           },
         ],
@@ -190,7 +303,7 @@ app.get("/api/chat/current", requireUser, (req, res) => {
   res.json({ session, mbti });
 });
 
-app.post("/api/report/generate", requireUser, async (req, res) => {
+app.post("/api/report/generate", requireUser, rateLimit({ windowMs: 5 * 60 * 1000, max: 10, keyPrefix: "report" }), async (req, res) => {
   const mbti = req.store.mbtiResults.filter((item) => item.userId === req.user.id).at(-1);
   const session = req.store.chatSessions.find((item) => item.userId === req.user.id && !item.closedAt);
   if (!mbti || !session) return res.status(409).json({ error: "请先完成测评和对话" });
@@ -204,6 +317,7 @@ app.post("/api/report/generate", requireUser, async (req, res) => {
       createdAt: new Date().toISOString(),
     };
     store.reports.push(item);
+    store.events.push({ type: "report_generated", userId: req.user.id, reportId: item.id, createdAt: item.createdAt });
     return item;
   });
 
@@ -213,10 +327,61 @@ app.post("/api/report/generate", requireUser, async (req, res) => {
 
 app.use("/reports", express.static(reportDir));
 
-app.get(["/assessment/mbti", "/chat", "/profile"], (req, res) => {
+app.get("/api/admin/summary", requireAdmin, (req, res) => {
+  const store = readStore();
+  res.json({
+    stats: createStats(store),
+    users: toLeadRows(store).slice(-100).reverse(),
+    campuses: store.campuses,
+    backupDir,
+  });
+});
+
+app.get("/api/admin/leads.csv", requireAdmin, (req, res) => {
+  const store = readStore();
+  const rows = toLeadRows(store);
+  const headers = ["name", "gender", "phone", "source", "createdAt", "mbti", "reports", "province", "subjects", "score", "rank", "targetCities", "majorInterests", "budget", "acceptance"];
+  const escape = (value) => `"${String(value || "").replaceAll('"', '""')}"`;
+  const csv = [
+    headers.join(","),
+    ...rows.map((row) =>
+      [
+        row.name,
+        row.gender,
+        row.phone,
+        row.source,
+        row.createdAt,
+        row.mbti,
+        row.reports,
+        row.profile.province,
+        row.profile.subjects,
+        row.profile.score,
+        row.profile.rank,
+        row.profile.targetCities,
+        row.profile.majorInterests,
+        row.profile.budget,
+        row.profile.acceptance,
+      ]
+        .map(escape)
+        .join(",")
+    ),
+  ].join("\n");
+  res.type("text/csv").send(csv);
+});
+
+app.post("/api/admin/backup", requireAdmin, (req, res) => {
+  const backupPath = backupStore();
+  res.json({ ok: true, backupPath });
+});
+
+app.get(["/assessment/mbti", "/chat", "/profile", "/admin"], (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`wuhao-zhiyuan listening on http://0.0.0.0:${port}`);
-});
+if (require.main === module) {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`wuhao-zhiyuan listening on http://0.0.0.0:${port}`);
+  });
+}
+
+module.exports = { app, sanitizeStudentProfile, createStats };

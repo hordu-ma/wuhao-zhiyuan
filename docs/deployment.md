@@ -9,6 +9,8 @@
 - 生产应用目录：`/opt/wuhao-zhiyuan`
 - 生产环境文件：`/etc/wuhao-zhiyuan.env`
 - 生产 systemd 服务：`wuhao-zhiyuan.service`
+- 健康检查：`https://zhiyuan.horsduroot.com/healthz`
+- 运营后台：`https://zhiyuan.horsduroot.com/admin`，需要 `ADMIN_TOKEN`
 - 后台启动命令：
 
 ```bash
@@ -88,11 +90,20 @@ Host wuhao-tutor-ecs
 ssh wuhao-tutor-ecs 'systemctl status wuhao-zhiyuan --no-pager'
 ssh wuhao-tutor-ecs 'journalctl -u wuhao-zhiyuan -n 100 --no-pager'
 ssh wuhao-tutor-ecs 'nginx -t && systemctl reload nginx'
+ssh wuhao-tutor-ecs 'grep -q "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env || echo "ADMIN_TOKEN=$(openssl rand -hex 24)" >> /etc/wuhao-zhiyuan.env'
 ```
 
 部署后验证命令：
 
 ```bash
 ssh wuhao-tutor-ecs 'curl -sf http://127.0.0.1:18082/ >/dev/null && echo app_ok'
+ssh wuhao-tutor-ecs 'curl -sf http://127.0.0.1:18082/healthz'
 curl -I https://zhiyuan.horsduroot.com/
 ```
+
+## 数据备份
+
+- 主数据文件：生产目录下的 `data/store.json`
+- 报告目录：生产目录下的 `reports/`
+- 后台备份接口：`POST /api/admin/backup`，请求头 `x-admin-token: <ADMIN_TOKEN>`
+- 备份输出目录：`data/backups/`

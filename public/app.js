@@ -81,6 +81,10 @@ function authBox() {
           <label>密码</label>
           <input name="password" type="password" autocomplete="current-password" placeholder="至少6位" />
         </div>
+        <label class="check-row" data-register-field>
+          <input name="privacyConsent" type="checkbox" />
+          <span>我已了解手机号、测评答案、对话内容和报告将用于生成志愿咨询建议，并同意五好智学用于后续人工复核与咨询联系。</span>
+        </label>
         <p class="error" data-auth-error></p>
         <button class="block" type="submit">注册并进入系统</button>
       </form>
@@ -94,14 +98,16 @@ function mountAuth() {
   let mode = "register";
   const form = box.querySelector("[data-auth-form]");
   const error = box.querySelector("[data-auth-error]");
-  const registerFields = box.querySelector("[data-register-fields]");
+  const registerFields = box.querySelectorAll("[data-register-fields], [data-register-field]");
   const submit = form.querySelector("button[type=submit]");
 
   box.querySelectorAll("[data-auth-tab]").forEach((button) => {
     button.addEventListener("click", () => {
       mode = button.dataset.authTab;
       box.querySelectorAll("[data-auth-tab]").forEach((item) => item.classList.toggle("active", item === button));
-      registerFields.hidden = mode === "login";
+      registerFields.forEach((item) => {
+        item.hidden = mode === "login";
+      });
       submit.textContent = mode === "login" ? "登录并进入系统" : "注册并进入系统";
       error.textContent = "";
     });
@@ -222,6 +228,10 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function escapeAttr(value) {
+  return escapeHtml(value).replaceAll("'", "&#39;");
+}
+
 async function chatPage() {
   if (!(await requireLogin())) return;
   const data = await api("/api/chat/current");
@@ -229,6 +239,7 @@ async function chatPage() {
     window.location.href = "/assessment/mbti";
     return;
   }
+  const profile = state.me.user.studentProfile || {};
   setHtml(`
     <section class="page">
       <div class="page-head">
@@ -240,6 +251,23 @@ async function chatPage() {
       </div>
       <div class="chat-layout">
         <section class="chat-window">
+          <details class="profile-capture" open>
+            <summary>考生关键信息</summary>
+            <form class="profile-form" data-profile-form>
+              <div class="form-grid">
+                <input name="province" placeholder="省份，例如山东" value="${escapeAttr(profile.province || "")}" />
+                <input name="subjects" placeholder="选科，例如物化生" value="${escapeAttr(profile.subjects || "")}" />
+                <input name="score" placeholder="总分，例如612" value="${escapeAttr(profile.score || "")}" />
+                <input name="rank" placeholder="位次，例如28000" value="${escapeAttr(profile.rank || "")}" />
+                <input name="targetCities" placeholder="目标城市，例如济南、青岛" value="${escapeAttr(profile.targetCities || "")}" />
+                <input name="majorInterests" placeholder="专业兴趣，例如计算机、自动化" value="${escapeAttr(profile.majorInterests || "")}" />
+                <input name="budget" placeholder="家庭预算" value="${escapeAttr(profile.budget || "")}" />
+                <input name="acceptance" placeholder="民办/中外合作接受度" value="${escapeAttr(profile.acceptance || "")}" />
+              </div>
+              <p class="notice" data-profile-status>先保存关键信息，再开始对话，报告会自动带入。</p>
+              <button type="submit" class="secondary">保存考生信息</button>
+            </form>
+          </details>
           <div class="messages" data-messages>${(data.session?.messages || []).map(messageHtml).join("")}</div>
           <form class="chat-form" data-chat-form>
             <textarea name="message" placeholder="例如：山东，物化生，总分612，语文118，数学125，英语130，位次约28000，想去青岛或济南，偏向计算机和自动化，家庭可接受公办和中外合作..."></textarea>
@@ -258,9 +286,23 @@ async function chatPage() {
   `);
 
   const messages = document.querySelector("[data-messages]");
+  const profileForm = document.querySelector("[data-profile-form]");
+  const profileStatus = document.querySelector("[data-profile-status]");
   const form = document.querySelector("[data-chat-form]");
   const error = document.querySelector("[data-chat-error]");
   messages.scrollTop = messages.scrollHeight;
+
+  profileForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(profileForm).entries());
+    try {
+      const result = await api("/api/profile/student", { method: "POST", body: JSON.stringify(payload) });
+      state.me.user = result.user;
+      profileStatus.textContent = "已保存，后续 AI 建议和 PDF 报告会带入这些信息。";
+    } catch (err) {
+      profileStatus.textContent = err.message;
+    }
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -310,6 +352,16 @@ async function profilePage() {
           <p>姓名：${data.user.name}</p>
           <p>性别：${data.user.gender}</p>
           <p>手机号：${data.user.phone}</p>
+          <p>来源：${data.user.source || "未记录"}</p>
+        </article>
+        <article class="profile-row">
+          <h2>考生信息</h2>
+          <p>省份：${data.user.studentProfile?.province || "待补充"}</p>
+          <p>选科：${data.user.studentProfile?.subjects || "待补充"}</p>
+          <p>总分：${data.user.studentProfile?.score || "待补充"}</p>
+          <p>位次：${data.user.studentProfile?.rank || "待补充"}</p>
+          <p>目标城市：${data.user.studentProfile?.targetCities || "待补充"}</p>
+          <p>专业兴趣：${data.user.studentProfile?.majorInterests || "待补充"}</p>
         </article>
         <article class="profile-row">
           <h2>最近测评</h2>
@@ -338,6 +390,85 @@ async function profilePage() {
   `);
 }
 
+async function adminPage() {
+  setHtml(`
+    <section class="page">
+      <div class="page-head">
+        <div>
+          <h1>运营后台</h1>
+          <p class="lead">查看注册、测评、对话、报告和线索数据。访问令牌由生产环境 ADMIN_TOKEN 控制。</p>
+        </div>
+      </div>
+      <section class="admin-login">
+        <input data-admin-token placeholder="输入后台访问令牌" value="${escapeAttr(localStorage.getItem("wuhaoAdminToken") || "")}" />
+        <button data-admin-load>加载数据</button>
+        <a class="button secondary" data-admin-export href="#">导出线索 CSV</a>
+        <button class="secondary" data-admin-backup>备份数据</button>
+      </section>
+      <p class="error" data-admin-error></p>
+      <section class="stats-grid" data-admin-stats></section>
+      <section class="profile-row">
+        <h2>最近线索</h2>
+        <div class="table-wrap" data-admin-users></div>
+      </section>
+    </section>
+  `);
+
+  const tokenInput = document.querySelector("[data-admin-token]");
+  const error = document.querySelector("[data-admin-error]");
+  const statsBox = document.querySelector("[data-admin-stats]");
+  const usersBox = document.querySelector("[data-admin-users]");
+  const exportLink = document.querySelector("[data-admin-export]");
+
+  async function loadAdmin() {
+    error.textContent = "";
+    const token = tokenInput.value.trim();
+    localStorage.setItem("wuhaoAdminToken", token);
+    exportLink.href = `/api/admin/leads.csv?token=${encodeURIComponent(token)}`;
+    try {
+      const data = await api("/api/admin/summary", { headers: { "x-admin-token": token } });
+      statsBox.innerHTML = Object.entries(data.stats)
+        .map(([key, value]) => `<article class="stat"><strong>${value}</strong><span>${key}</span></article>`)
+        .join("");
+      usersBox.innerHTML = `
+        <table>
+          <thead><tr><th>姓名</th><th>手机号</th><th>来源</th><th>MBTI</th><th>报告</th><th>省份/分数/位次</th></tr></thead>
+          <tbody>
+            ${data.users
+              .map(
+                (user) => `
+                  <tr>
+                    <td>${escapeHtml(user.name)}</td>
+                    <td>${escapeHtml(user.phone)}</td>
+                    <td>${escapeHtml(user.source || "")}</td>
+                    <td>${escapeHtml(user.mbti || "")}</td>
+                    <td>${user.reports}</td>
+                    <td>${escapeHtml([user.profile.province, user.profile.score, user.profile.rank].filter(Boolean).join(" / "))}</td>
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `;
+    } catch (err) {
+      error.textContent = err.message;
+    }
+  }
+
+  document.querySelector("[data-admin-load]").addEventListener("click", loadAdmin);
+  document.querySelector("[data-admin-backup]").addEventListener("click", async () => {
+    try {
+      const token = tokenInput.value.trim();
+      const data = await api("/api/admin/backup", { method: "POST", headers: { "x-admin-token": token }, body: "{}" });
+      error.textContent = `已备份：${data.backupPath}`;
+    } catch (err) {
+      error.textContent = err.message;
+    }
+  });
+  if (tokenInput.value.trim()) await loadAdmin();
+}
+
 logoutButton.addEventListener("click", async () => {
   await api("/api/auth/logout", { method: "POST", body: "{}" });
   window.location.href = "/";
@@ -351,6 +482,8 @@ if (route() === "/assessment/mbti") {
   await chatPage();
 } else if (route() === "/profile") {
   await profilePage();
+} else if (route() === "/admin") {
+  await adminPage();
 } else {
   home();
 }

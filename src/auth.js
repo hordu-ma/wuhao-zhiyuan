@@ -54,6 +54,8 @@ function publicUser(user) {
     phone: user.phone,
     name: user.name,
     gender: user.gender,
+    source: user.source,
+    studentProfile: user.studentProfile || {},
     createdAt: user.createdAt,
   };
 }

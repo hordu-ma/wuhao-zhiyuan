@@ -1,104 +1,111 @@
 # 五好智学志愿填报辅助决策系统主账本
 
-## 项目结论
+## 1. 项目结论
 
 - 项目名称：五好智学｜志愿填报辅助决策系统
-- 首页目标域名：https://zhiyuan.horsduroot.com
-- 一期目标：打通注册登录、MBTI测评、AI志愿对话、PDF报告下载、校区电话/微信引流闭环。
-- 当前实现策略：使用单体 Node/Express 服务承载前端页面、后端 API、报告生成和静态资源，便于快速部署到子域名。
+- 生产地址：`https://zhiyuan.horsduroot.com`
+- 当前阶段：一期 MVP 已上线，下一步进入“可信数据、运营转化、稳定性增强”阶段。
+- 当前架构：单体 Node/Express 应用承载静态页面、API、AI 对话、PDF 报告生成和本地 JSON 存储。
+- 核心闭环：注册登录 → MBTI 测评 → AI 志愿咨询 → PDF 报告下载 → 校区电话/微信引流。
 
-## 一期功能清单
+## 2. 已完成基线
 
-- [x] 建立项目主账本 `tasks.md`
-- [x] 搭建 Express 应用骨架
-- [x] 首页：导航栏、品牌介绍、使用流程、登录注册入口、校区联系方式
+- [x] Express 应用骨架与静态前端
 - [x] 手机号 + 密码注册登录
 - [x] 个人中心基础页
-- [x] 自研 16 型人格倾向问卷，避免直接复制官方 MBTI 题库
-- [x] MBTI 结果计算和保存
-- [x] 对话窗口自动注入姓名、性别、MBTI
-- [x] 大模型接口封装，支持阿里云 DashScope 环境变量
-- [x] 无 API key 时启用 mock 志愿建议
-- [x] PDF 报告生成，包含五好智学水印
+- [x] 自研 16 型人格倾向测评与结果保存
+- [x] AI 志愿对话，支持阿里云 DashScope
+- [x] 未配置 API key 时启用本地 mock 建议
+- [x] PDF 咨询报告生成，包含五好智学水印
 - [x] 校区电话和微信信息展示
-- [x] 本地服务启动验证
-- [x] 本地后台进程运行在 `127.0.0.1:18082`
-- [x] zhiyuan.horsduroot.com 域名反向代理验证
-- [x] git add / commit / push
+- [x] 本地测试：`npm test`
+- [x] 生产部署：systemd + Nginx + HTTPS + `zhiyuan.horsduroot.com`
 
-## 页面结构
+## 3. 当前模块地图
 
-- `/`：首页，含项目理念、使用方式、注册登录、校区联系方式。
-- `/assessment/mbti`：MBTI倾向测评页。
-- `/chat`：AI志愿对话页。
-- `/profile`：个人中心。
-- `/reports/:id.pdf`：PDF咨询报告下载。
+- `src/server.js`：Express 路由、认证中间件、业务流程入口。
+- `src/auth.js`：密码哈希、登录 session、当前用户识别。
+- `src/mbti.js`：测评题目、计分逻辑、结果摘要。
+- `src/ai.js`：DashScope 调用、本地 mock 回复。
+- `src/report.js`：PDF 报告生成与下载目录。
+- `src/store.js`：本地 JSON 存储读写。
+- `public/`：首页、测评、对话、个人中心等浏览器端资源。
+- `docs/deployment.md`：生产部署与维护命令。
+- `AGENTS.md`：贡献者与 AI 协作指南。
 
-## API 结构
+## 4. 运行与验证命令
 
-- `POST /api/auth/register`：手机号、密码、姓名、性别注册。
-- `POST /api/auth/login`：手机号、密码登录。
-- `POST /api/auth/logout`：退出登录。
-- `GET /api/me`：当前登录用户。
-- `POST /api/mbti/submit`：提交测评答案。
-- `GET /api/mbti/latest`：读取最近一次测评结果。
-- `POST /api/chat/message`：发送对话消息并获取 AI 回复。
-- `POST /api/report/generate`：生成 PDF 报告。
-- `GET /api/campuses`：校区联系方式。
+```bash
+npm install
+npm test
+PORT=18082 npm start
+npm run dev
+```
 
-## 数据与资源
+- 本地访问：`http://127.0.0.1:18082`
+- 生产服务：`wuhao-zhiyuan.service`
+- 生产日志：`journalctl -u wuhao-zhiyuan -n 100 --no-pager`
 
-- 品牌资料来源：`/home/pgx/asset-base/internal/五好爱学`
-- 当前未发现可直接用于网页导航的透明 logo，已使用自绘 SVG 临时 logo。
-- 校区联系方式：当前使用 mock 校区数据。
-- 数据存储：当前使用 `data/store.json` 本地 JSON 文件。
-- 数据库资源：尚未接入 `wuhao-tutor` 的数据库配置，因本机未找到 `wuhao-tutor` 仓库或可复用环境文件。
-- 大模型：支持阿里云 DashScope；若未设置 API key，自动使用 mock 回复。
+## 5. 下一阶段优先级
 
-## 环境变量
+### P0：真实运营数据替换 mock
+
+- [x] 替换 `mock-campus`：默认咨询点改为五好生涯线上咨询中心与济南咨询点，并支持 `CAMPUS_CONFIG_JSON` 覆盖。
+- [x] 替换 `temp-logo`：保留文字品牌标识，去除 mock 标记，后续可用正式素材替换。
+- [x] 梳理隐私提示与用户授权文案，说明手机号、测评、对话和报告用途。
+- [x] 明确生产数据备份策略，覆盖 `data/store.json`、`reports/` 和后台备份接口。
+
+### P1：咨询质量与转化增强
+
+- [x] 优化 AI system prompt，固定输出结构：考生画像、信息缺口、院校/专业建议、风险点、资料清单、咨询引导。
+- [x] 报告增加“待补充信息与人工复核建议”板块，避免报告看起来像最终录取承诺。
+- [x] 增加用户基础信息字段：省份、选科、分数、位次、预算、目标城市、专业偏好。
+- [x] 在对话开始前用表单收集关键字段，减少 AI 首轮追问成本。
+
+### P2：稳定性、安全与可维护性
+
+- [x] 给注册、资料保存、MBTI 提交、AI 对话、报告生成和后台统计增加路由级测试。
+- [x] 增加基础请求限流，降低登录、注册、AI 和报告接口滥用风险。
+- [x] 将本地 JSON 存储增加规范化与备份接口，为后续 PostgreSQL 或复用 `wuhao-tutor` 数据库做准备。
+- [x] 增加健康检查接口 `GET /healthz`。
+
+### P3：运营后台与数据沉淀
+
+- [x] 增加简单管理入口 `/admin`，查看用户、测评、对话、报告和联系方式。
+- [x] 支持导出潜在客户列表 CSV：`/api/admin/leads.csv`。
+- [x] 增加来源渠道参数记录：`source`、`utm_source`、`campus`。
+- [x] 统计注册数、完测数、报告生成数、咨询转化线索数。
+
+## 6. Mock 与技术债标记
+
+- `campus-config`：默认咨询点可用，真实电话、微信、地址可通过 `CAMPUS_CONFIG_JSON` 覆盖。
+- `mock-ai`：无 API key 时使用本地规则回复，只适合开发与兜底。
+- `json-store`：生产仍使用本地 JSON 文件，已增加备份接口，后续可迁移数据库。
+- `brand-assets`：当前使用文字品牌标识，后续可替换正式图片 logo。
+- `route-tests`：已覆盖主流程，仍可继续补充失败分支和限流分支。
+
+## 7. 环境变量
 
 - `PORT`：服务端口，默认 `18082`。
-- `SESSION_SECRET`：登录 cookie 签名密钥。
-- `DASHSCOPE_API_KEY` 或 `ALIYUN_API_KEY`：阿里云大模型密钥。
+- `SESSION_SECRET`：登录 cookie 签名密钥，生产必须配置。
+- `DASHSCOPE_API_KEY` 或 `ALIYUN_API_KEY`：阿里云 DashScope API key。
 - `DASHSCOPE_MODEL`：模型名，默认 `qwen-plus`。
+- `ADMIN_TOKEN`：运营后台访问令牌。
+- `CAMPUS_CONFIG_JSON`：可选，校区配置 JSON 数组。
 
-## Mock 标记
+## 8. 生产部署事实
 
-- `mock-campus`：校区电话和微信为占位数据，需用真实校区信息替换。
-- `mock-ai`：未检测到阿里云 API key 时，对话建议由本地规则生成。
-- `json-store`：当前为本地 JSON 存储，生产环境建议迁移到 PostgreSQL 或复用 `wuhao-tutor` 数据库资源。
-- `temp-logo`：当前 logo 为临时 SVG，可在找到正式品牌 logo 后替换。
+- 生产目标机：阿里云 ECS `121.199.173.244`
+- 生产目录：`/opt/wuhao-zhiyuan`
+- 生产环境文件：`/etc/wuhao-zhiyuan.env`
+- Node 运行时：`/opt/node-v20`
+- systemd 服务：`wuhao-zhiyuan.service`，已设置 `active` / `enabled`
+- Nginx：HTTPS 反代到 `127.0.0.1:18082`
+- 证书：Let's Encrypt，当前记录有效期至 `2026-08-17`
 
-## 部署计划
+## 9. 回滚方式
 
-1. 安装依赖：`npm install`
-2. 启动服务：`PORT=18082 npm start`
-3. 配置进程守护：优先使用 `pm2`，没有则使用 `nohup` 临时运行。
-4. 配置 Nginx/Caddy/系统反代，将 `zhiyuan.horsduroot.com` 指向 `127.0.0.1:18082`。
-5. 验证：
-   - 首页可访问
-   - 注册登录可用
-   - MBTI提交后跳转对话
-   - 对话可生成建议
-   - PDF可下载且带水印
-
-## 当前部署状态
-
-- 已安装 Node 依赖。
-- 已通过 `setsid env PORT=18082 node src/server.js ...` 启动后台服务。
-- `http://127.0.0.1:18082/` 返回 200。
-- 生产目标机已确认为阿里云 ECS `121.199.173.244`，现有 `horsduroot.com` / `www.horsduroot.com` 运行在该机 Nginx。
-- 已使用 `~/Downloads/wuhao-ecs.pem` 登录生产 ECS 并部署到 `/opt/wuhao-zhiyuan`。
-- 已安装独立 Node 20 到 `/opt/node-v20`，避免依赖系统 Node 12。
-- 已创建 systemd 服务 `wuhao-zhiyuan.service`，状态 `active` / `enabled`。
-- 已从 `/opt/wuhao-tutor/.env.production` 读取百炼 API key，写入 `/etc/wuhao-zhiyuan.env`，不进入仓库。
-- 已通过 AliDNS API 创建 `zhiyuan.horsduroot.com -> 121.199.173.244` A 记录。
-- 已为 `zhiyuan.horsduroot.com` 申请 Let's Encrypt 证书，证书有效期至 2026-08-17，并启用自动续期。
-- 已配置 Nginx：HTTP 自动跳转 HTTPS，HTTPS 反代到 `127.0.0.1:18082`。
-- 已完成公网 HTTPS 冒烟：注册、MBTI、DashScope 对话、PDF 下载均成功。
-
-## 回滚方式
-
-- 应用层：停止 Node 进程即可回滚服务。
-- 反代层：移除或禁用 `zhiyuan.horsduroot.com` 对应 server block。
-- 数据层：当前本地数据位于 `data/store.json`，可备份后清空。
+- 应用层：停止或回退 `wuhao-zhiyuan.service` 对应代码目录。
+- 反代层：禁用 `zhiyuan.horsduroot.com` 对应 Nginx server block 后 reload。
+- 数据层：备份后恢复 `data/store.json` 与报告目录。
+- 文档层：使用 git 恢复 `tasks.md`。
