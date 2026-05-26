@@ -83,7 +83,7 @@ function authBox() {
         </div>
         <label class="check-row" data-register-field>
           <input name="privacyConsent" type="checkbox" />
-          <span>我已了解手机号、测评答案、对话内容和报告将用于生成志愿咨询建议，并同意五好智学用于后续人工复核与咨询联系。</span>
+          <span>我已了解手机号、测评答案、对话内容和报告将用于生成志愿咨询建议，并同意五好生涯用于后续人工复核与咨询联系。</span>
         </label>
         <p class="error" data-auth-error></p>
         <button class="block" type="submit">注册并进入系统</button>
@@ -134,7 +134,7 @@ function home() {
         <p class="eyebrow">高考志愿填报 · 人格倾向 · 大模型辅助</p>
         <h1>把分数、性格、专业和未来路径放在同一张决策图上。</h1>
         <p class="lead">
-          五好智学志愿填报辅助决策系统面向考生和家庭，先通过自研 16 型人格倾向问卷理解学生的学习与决策偏好，再结合分数、位次、选科、城市和专业意向，生成初步志愿建议与咨询报告。
+          五好生涯志愿填报辅助决策系统面向考生和家庭，先通过自研 16 型人格倾向问卷理解学生的学习与决策偏好，再结合分数、位次、选科、城市和专业意向，生成初步志愿建议与咨询报告。
         </p>
         <div class="steps">
           <article class="step"><strong>1. 注册登录</strong>使用手机号和密码建立个人档案，姓名与性别用于报告生成。</article>

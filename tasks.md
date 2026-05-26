@@ -1,8 +1,8 @@
-# 五好智学志愿填报辅助决策系统主账本
+# 五好生涯志愿填报辅助决策系统主账本
 
 ## 1. 项目结论
 
-- 项目名称：五好智学｜志愿填报辅助决策系统
+- 项目名称：五好生涯｜志愿填报辅助决策系统
 - 生产地址：`https://zhiyuan.horsduroot.com`
 - 当前阶段：一期 MVP 已上线，下一步进入“可信数据、运营转化、稳定性增强”阶段。
 - 当前架构：单体 Node/Express 应用承载静态页面、API、AI 对话、PDF 报告生成和本地 JSON 存储。
@@ -16,7 +16,7 @@
 - [x] 自研 16 型人格倾向测评与结果保存
 - [x] AI 志愿对话，支持阿里云 DashScope
 - [x] 未配置 API key 时启用本地 mock 建议
-- [x] PDF 咨询报告生成，包含五好智学水印
+- [x] PDF 咨询报告生成，包含五好生涯水印
 - [x] 校区电话和微信信息展示
 - [x] 本地测试：`npm test`
 - [x] 生产部署：systemd + Nginx + HTTPS + `zhiyuan.horsduroot.com`
@@ -50,7 +50,7 @@ npm run dev
 
 ### P0：真实运营数据替换 mock
 
-- [x] 替换 `mock-campus`：默认咨询点改为五好生涯线上咨询中心与济南咨询点，并支持 `CAMPUS_CONFIG_JSON` 覆盖。
+- [x] 替换 `mock-campus`：默认咨询点改为五好生涯青州咨询中心与五好生涯济南咨询中心，并支持 `CAMPUS_CONFIG_JSON` 覆盖。
 - [x] 替换 `temp-logo`：保留文字品牌标识，去除 mock 标记，后续可用正式素材替换。
 - [x] 梳理隐私提示与用户授权文案，说明手机号、测评、对话和报告用途。
 - [x] 明确生产数据备份策略，覆盖 `data/store.json`、`reports/` 和后台备份接口。
@@ -116,5 +116,5 @@ npm run dev
 - 公网健康检查：`https://zhiyuan.horsduroot.com/healthz` 返回 `ok: true`。
 - 生产服务状态：`wuhao-zhiyuan.service` 为 `active` / `enabled`。
 - 生产环境配置：`SESSION_SECRET`、`DASHSCOPE_API_KEY`、`DASHSCOPE_MODEL`、`ADMIN_TOKEN` 已配置。
-- 咨询点配置：`CAMPUS_CONFIG_JSON` 未配置，当前使用默认“五好生涯线上咨询中心”和“五好生涯济南咨询点”。
+- 咨询点配置：`CAMPUS_CONFIG_JSON` 未配置，当前使用默认“五好生涯青州咨询中心”和“五好生涯济南咨询中心”。
 - 备份演练：已通过 `POST /api/admin/backup` 生成生产备份 `store-2026-05-26T06-07-55-555Z.json`。

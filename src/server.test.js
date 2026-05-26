@@ -47,6 +47,30 @@ test("supports the main user flow and admin summary", async () => {
     assert.equal(health.response.status, 200);
     assert.equal(health.data.ok, true);
 
+    const campuses = await request(baseUrl, "/api/campuses");
+    assert.deepEqual(
+      campuses.data.campuses.map((campus) => ({
+        name: campus.name,
+        phone: campus.phone,
+        wechat: campus.wechat,
+        address: campus.address,
+      })),
+      [
+        {
+          name: "五好生涯青州咨询中心",
+          phone: "15689896888",
+          wechat: "lixuwei-",
+          address: "潍坊青州市海岱中路2426号",
+        },
+        {
+          name: "五好生涯济南咨询中心",
+          phone: "18765880081",
+          wechat: "malphaxe7",
+          address: "济南市市中区二环东路12550号",
+        },
+      ]
+    );
+
     const registered = await request(baseUrl, "/api/auth/register?source=test-qr", {
       method: "POST",
       body: JSON.stringify({

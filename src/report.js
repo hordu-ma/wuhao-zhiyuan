@@ -13,7 +13,7 @@ function drawWatermark(doc) {
   const { width, height } = doc.page;
   doc.save();
   doc.rotate(-28, { origin: [width / 2, height / 2] });
-  doc.fillColor("#d7e3dd").opacity(0.22).fontSize(64).text("五好智学", -40, height / 2 - 40, {
+  doc.fillColor("#d7e3dd").opacity(0.22).fontSize(64).text("五好生涯", -40, height / 2 - 40, {
     align: "center",
     width: width + 120,
   });
@@ -46,7 +46,7 @@ function formatProfile(profile = {}) {
 function generateReport({ report, user, mbti, messages, campuses }) {
   ensureReportDir();
   const filePath = path.join(reportDir, `${report.id}.pdf`);
-  const doc = new PDFDocument({ size: "A4", margin: 48, info: { Title: "五好智学志愿填报咨询报告" } });
+  const doc = new PDFDocument({ size: "A4", margin: 48, info: { Title: "五好生涯志愿填报咨询报告" } });
   const stream = fs.createWriteStream(filePath);
   doc.pipe(stream);
   if (fs.existsSync(fontPath)) {
@@ -54,7 +54,7 @@ function generateReport({ report, user, mbti, messages, campuses }) {
   }
 
   drawWatermark(doc);
-  doc.fontSize(21).fillColor("#163d32").text("五好智学｜志愿填报辅助咨询报告", { align: "center" });
+  doc.fontSize(21).fillColor("#163d32").text("五好生涯｜志愿填报辅助咨询报告", { align: "center" });
   doc.moveDown(0.3);
   doc.fontSize(9).fillColor("#66736e").text(`报告编号：${report.id}    生成时间：${new Date(report.createdAt).toLocaleString("zh-CN")}`, { align: "center" });
 
@@ -68,7 +68,7 @@ function generateReport({ report, user, mbti, messages, campuses }) {
   addSection(
     doc,
     "五、待补充信息与人工复核建议",
-    "正式填报前，请继续核对：最新招生计划、近三年专业组录取位次、单科/体检限制、调剂规则、民办与中外合作预算边界。建议携带成绩单、位次、选科、目标城市、专业偏好和家庭预算，与五好智学顾问进行人工复核。"
+    "正式填报前，请继续核对：最新招生计划、近三年专业组录取位次、单科/体检限制、调剂规则、民办与中外合作预算边界。建议携带成绩单、位次、选科、目标城市、专业偏好和家庭预算，与五好生涯顾问进行人工复核。"
   );
 
   addSection(
@@ -80,7 +80,7 @@ function generateReport({ report, user, mbti, messages, campuses }) {
   addSection(
     doc,
     "七、服务声明",
-    "本报告由五好智学志愿填报辅助决策系统根据用户输入和人格倾向结果生成，仅用于前期咨询参考，不构成最终填报方案或录取承诺。正式填报前，建议结合招生章程、最新计划、位次数据和人工咨询进行复核。"
+    "本报告由五好生涯志愿填报辅助决策系统根据用户输入和人格倾向结果生成，仅用于前期咨询参考，不构成最终填报方案或录取承诺。正式填报前，建议结合招生章程、最新计划、位次数据和人工咨询进行复核。"
   );
 
   doc.end();
