@@ -32,6 +32,14 @@ async function request(baseUrl, pathName, options = {}) {
   return { response, data };
 }
 
+function getSessionCookie(response) {
+  return response.headers
+    .get("set-cookie")
+    .split(",")
+    .map((item) => item.trim().split(";")[0])
+    .find((item) => item.startsWith("wuhao_zhiyuan_session="));
+}
+
 test("supports the main user flow and admin summary", async () => {
   const { server, baseUrl } = await listen();
   try {
@@ -50,11 +58,7 @@ test("supports the main user flow and admin summary", async () => {
       }),
     });
     assert.equal(registered.response.status, 200);
-    const cookie = registered.response.headers
-      .get("set-cookie")
-      .split(",")
-      .map((item) => item.trim().split(";")[0])
-      .find((item) => item.startsWith("wuhao_zhiyuan_session="));
+    const cookie = getSessionCookie(registered.response);
 
     const profile = await request(baseUrl, "/api/profile/student", {
       method: "POST",
@@ -101,6 +105,120 @@ test("supports the main user flow and admin summary", async () => {
     assert.equal(admin.response.status, 200);
     assert.equal(admin.data.stats.users, 1);
     assert.equal(admin.data.stats.reports, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("rejects invalid auth and protects user routes", async () => {
+  const { server, baseUrl } = await listen();
+  try {
+    const invalidRegister = await request(baseUrl, "/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "测试学生",
+        gender: "女",
+        phone: "123",
+        password: "secret123",
+        privacyConsent: true,
+      }),
+    });
+    assert.equal(invalidRegister.response.status, 400);
+    assert.equal(invalidRegister.data.error, "请输入 11 位手机号");
+
+    const noConsent = await request(baseUrl, "/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "测试学生",
+        gender: "女",
+        phone: "13900000002",
+        password: "secret123",
+      }),
+    });
+    assert.equal(noConsent.response.status, 400);
+    assert.equal(noConsent.data.error, "请先确认隐私与服务提示");
+
+    const protectedRoute = await request(baseUrl, "/api/profile/student", {
+      method: "POST",
+      body: JSON.stringify({ province: "山东" }),
+    });
+    assert.equal(protectedRoute.response.status, 401);
+    assert.equal(protectedRoute.data.error, "请先注册或登录");
+
+    const login = await request(baseUrl, "/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ phone: "13900000002", password: "wrong-password" }),
+    });
+    assert.equal(login.response.status, 401);
+    assert.equal(login.data.error, "手机号或密码错误");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("exports leads and creates admin backups", async () => {
+  const { server, baseUrl } = await listen();
+  try {
+    const registered = await request(baseUrl, "/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "线索学生",
+        gender: "女",
+        phone: "13900000003",
+        password: "secret123",
+        privacyConsent: true,
+        province: "山东",
+        subjects: "史地政",
+      }),
+    });
+    assert.equal(registered.response.status, 200);
+
+    const unauthorized = await request(baseUrl, "/api/admin/summary", {
+      headers: { "x-admin-token": "wrong-token" },
+    });
+    assert.equal(unauthorized.response.status, 401);
+
+    const csvResponse = await fetch(`${baseUrl}/api/admin/leads.csv`, {
+      headers: { "x-admin-token": "test-admin-token" },
+    });
+    const csv = await csvResponse.text();
+    assert.equal(csvResponse.status, 200);
+    assert.match(csv, /^name,gender,phone,source,createdAt,mbti,reports,/);
+    assert.match(csv, /"线索学生","女","13900000003"/);
+
+    const backup = await request(baseUrl, "/api/admin/backup", {
+      method: "POST",
+      headers: { "x-admin-token": "test-admin-token" },
+      body: "{}",
+    });
+    assert.equal(backup.response.status, 200);
+    assert.equal(backup.data.ok, true);
+    assert.equal(fs.existsSync(backup.data.backupPath), true);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("rate limits repeated login failures", async () => {
+  const { server, baseUrl } = await listen();
+  try {
+    const headers = { "X-Forwarded-For": "203.0.113.10" };
+    for (let index = 0; index < 40; index += 1) {
+      const login = await request(baseUrl, "/api/auth/login", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ phone: "13900009999", password: "wrong-password" }),
+      });
+      assert.equal(login.response.status, 401);
+    }
+
+    const limited = await request(baseUrl, "/api/auth/login", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ phone: "13900009999", password: "wrong-password" }),
+    });
+    assert.equal(limited.response.status, 429);
+    assert.equal(limited.data.error, "请求过于频繁，请稍后再试");
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

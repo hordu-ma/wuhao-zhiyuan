@@ -107,3 +107,21 @@ curl -I https://zhiyuan.horsduroot.com/
 - 报告目录：生产目录下的 `reports/`
 - 后台备份接口：`POST /api/admin/backup`，请求头 `x-admin-token: <ADMIN_TOKEN>`
 - 备份输出目录：`data/backups/`
+
+### 备份演练记录
+
+- 2026-05-26：已在生产机通过后台备份接口生成 `data/backups/store-2026-05-26T06-07-55-555Z.json`。
+- 演练命令会从 `/etc/wuhao-zhiyuan.env` 读取 `ADMIN_TOKEN`，不要在终端输出或提交令牌明文。
+
+```bash
+ssh -i ~/Downloads/wuhao-ecs.pem root@121.199.173.244 \
+  'TOKEN=$(grep "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env | cut -d= -f2-); \
+  curl -fsS -X POST -H "x-admin-token: ${TOKEN}" http://127.0.0.1:18082/api/admin/backup'
+```
+
+## 2026-05-26 验收记录
+
+- 本地：`npm test`，5 项通过。
+- 公网：`curl -fsS https://zhiyuan.horsduroot.com/healthz` 返回 `ok: true`。
+- 生产机：`systemctl is-active wuhao-zhiyuan` 返回 `active`，`systemctl is-enabled wuhao-zhiyuan` 返回 `enabled`。
+- 环境：`SESSION_SECRET`、`DASHSCOPE_API_KEY`、`DASHSCOPE_MODEL`、`ADMIN_TOKEN` 已配置；`CAMPUS_CONFIG_JSON` 未配置，使用默认咨询点。

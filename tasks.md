@@ -82,7 +82,7 @@ npm run dev
 - `mock-ai`：无 API key 时使用本地规则回复，只适合开发与兜底。
 - `json-store`：生产仍使用本地 JSON 文件，已增加备份接口，后续可迁移数据库。
 - `brand-assets`：当前使用文字品牌标识，后续可替换正式图片 logo。
-- `route-tests`：已覆盖主流程，仍可继续补充失败分支和限流分支。
+- `route-tests`：已覆盖主流程、认证失败、未登录保护、后台令牌失败、线索 CSV、备份接口和登录限流分支。
 
 ## 7. 环境变量
 
@@ -109,3 +109,12 @@ npm run dev
 - 反代层：禁用 `zhiyuan.horsduroot.com` 对应 Nginx server block 后 reload。
 - 数据层：备份后恢复 `data/store.json` 与报告目录。
 - 文档层：使用 git 恢复 `tasks.md`。
+
+## 10. 2026-05-26 生产运营验收
+
+- 本地测试：`npm test`，5 项通过。
+- 公网健康检查：`https://zhiyuan.horsduroot.com/healthz` 返回 `ok: true`。
+- 生产服务状态：`wuhao-zhiyuan.service` 为 `active` / `enabled`。
+- 生产环境配置：`SESSION_SECRET`、`DASHSCOPE_API_KEY`、`DASHSCOPE_MODEL`、`ADMIN_TOKEN` 已配置。
+- 咨询点配置：`CAMPUS_CONFIG_JSON` 未配置，当前使用默认“五好生涯线上咨询中心”和“五好生涯济南咨询点”。
+- 备份演练：已通过 `POST /api/admin/backup` 生成生产备份 `store-2026-05-26T06-07-55-555Z.json`。
