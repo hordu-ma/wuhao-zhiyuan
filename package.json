@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "NODE_ENV=development node src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "restore:store": "node scripts/restore-store.js"
   },
   "keywords": [
     "wuhao",

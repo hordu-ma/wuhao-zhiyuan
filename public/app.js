@@ -13,7 +13,11 @@ async function api(path, options = {}) {
     ...options,
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "请求失败");
+  if (!response.ok) {
+    const error = new Error(data.error || "请求失败");
+    error.data = data;
+    throw error;
+  }
   return data;
 }
 
@@ -232,6 +236,29 @@ function escapeAttr(value) {
   return escapeHtml(value).replaceAll("'", "&#39;");
 }
 
+const profileLabels = {
+  province: "省份",
+  subjects: "选科",
+  score: "总分",
+  rank: "位次",
+  targetCities: "目标城市",
+  majorInterests: "专业兴趣",
+  budget: "家庭预算",
+  acceptance: "民办/中外合作接受度",
+};
+
+const reportRequiredFields = ["province", "subjects", "score", "rank", "targetCities", "majorInterests"];
+
+function missingProfileLabels(profile = {}, fields = reportRequiredFields) {
+  return fields.filter((field) => !profile[field]).map((field) => profileLabels[field]);
+}
+
+function profileCompleteness(profile = {}) {
+  const fields = Object.keys(profileLabels);
+  const filled = fields.filter((field) => profile[field]).length;
+  return `${filled}/${fields.length}`;
+}
+
 async function chatPage() {
   if (!(await requireLogin())) return;
   const data = await api("/api/chat/current");
@@ -240,6 +267,7 @@ async function chatPage() {
     return;
   }
   const profile = state.me.user.studentProfile || {};
+  const missingLabels = missingProfileLabels(profile);
   setHtml(`
     <section class="page">
       <div class="page-head">
@@ -279,6 +307,9 @@ async function chatPage() {
           <h2>当前测评</h2>
           <p><strong>${data.mbti.type}</strong></p>
           <p>${data.mbti.summary}</p>
+          <h2>信息完整度</h2>
+          <p><strong>${profileCompleteness(profile)}</strong></p>
+          <p class="notice" data-profile-gap>${missingLabels.length ? `报告前建议补充：${missingLabels.join("、")}` : "核心信息已具备，可进入报告生成。"}</p>
           <p class="notice">MBTI结果用于辅助理解偏好，正式志愿方案仍需结合位次、招生计划和人工复核。</p>
         </aside>
       </div>
@@ -288,6 +319,7 @@ async function chatPage() {
   const messages = document.querySelector("[data-messages]");
   const profileForm = document.querySelector("[data-profile-form]");
   const profileStatus = document.querySelector("[data-profile-status]");
+  const profileGap = document.querySelector("[data-profile-gap]");
   const form = document.querySelector("[data-chat-form]");
   const error = document.querySelector("[data-chat-error]");
   messages.scrollTop = messages.scrollHeight;
@@ -298,7 +330,9 @@ async function chatPage() {
     try {
       const result = await api("/api/profile/student", { method: "POST", body: JSON.stringify(payload) });
       state.me.user = result.user;
-      profileStatus.textContent = "已保存，后续 AI 建议和 PDF 报告会带入这些信息。";
+      const missing = missingProfileLabels(result.user.studentProfile || {});
+      profileStatus.textContent = `已保存，当前完整度 ${profileCompleteness(result.user.studentProfile || {})}。`;
+      profileGap.textContent = missing.length ? `报告前建议补充：${missing.join("、")}` : "核心信息已具备，可进入报告生成。";
     } catch (err) {
       profileStatus.textContent = err.message;
     }
@@ -330,6 +364,17 @@ async function chatPage() {
       const result = await api("/api/report/generate", { method: "POST", body: "{}" });
       window.location.href = result.downloadUrl;
     } catch (err) {
+      if (err.data?.code === "PROFILE_INCOMPLETE") {
+        const missing = (err.data.missingFields || []).map((item) => item.label).join("、");
+        const confirmed = window.confirm(`当前缺少：${missing}。确认先生成初版报告吗？`);
+        if (!confirmed) {
+          error.textContent = "请先补充关键信息后再生成报告。";
+          return;
+        }
+        const result = await api("/api/report/generate", { method: "POST", body: JSON.stringify({ confirmIncomplete: true }) });
+        window.location.href = result.downloadUrl;
+        return;
+      }
       error.textContent = err.message;
     }
   });
@@ -338,6 +383,7 @@ async function chatPage() {
 async function profilePage() {
   if (!(await requireLogin())) return;
   const data = await api("/api/me");
+  const profile = data.user.studentProfile || {};
   setHtml(`
     <section class="page">
       <div class="page-head">
@@ -362,6 +408,7 @@ async function profilePage() {
           <p>位次：${data.user.studentProfile?.rank || "待补充"}</p>
           <p>目标城市：${data.user.studentProfile?.targetCities || "待补充"}</p>
           <p>专业兴趣：${data.user.studentProfile?.majorInterests || "待补充"}</p>
+          <p>完整度：${profileCompleteness(profile)}</p>
         </article>
         <article class="profile-row">
           <h2>最近测评</h2>
@@ -382,8 +429,11 @@ async function profilePage() {
         </article>
         <article class="profile-row">
           <h2>继续使用</h2>
-          <p>完成测评后可进入 AI志愿对话，生成新的咨询报告。</p>
-          <a class="button" href="/chat">进入对话</a>
+          <p>完成测评后可继续上次 AI志愿对话，或在补齐关键信息后生成新的咨询报告。</p>
+          <div class="actions">
+            <a class="button" href="/chat">继续对话</a>
+            <a class="button secondary" href="/chat">生成报告</a>
+          </div>
         </article>
       </div>
     </section>
@@ -465,7 +515,7 @@ async function adminPage() {
         .join("");
       usersBox.innerHTML = `
         <table>
-          <thead><tr><th>姓名</th><th>手机号</th><th>来源</th><th>推荐校区</th><th>完整度</th><th>最近对话</th><th>MBTI</th><th>报告</th><th>省份/分数/位次</th></tr></thead>
+          <thead><tr><th>姓名</th><th>手机号</th><th>来源</th><th>推荐校区</th><th>完整度</th><th>最近对话</th><th>建议摘要</th><th>MBTI</th><th>报告</th><th>省份/分数/位次</th></tr></thead>
           <tbody>
             ${data.users
               .map(
@@ -477,6 +527,7 @@ async function adminPage() {
                     <td>${escapeHtml(user.recommendedCampus || "")}</td>
                     <td>${escapeHtml(user.profileCompleteness || "")}</td>
                     <td>${escapeHtml(user.lastChatAt ? new Date(user.lastChatAt).toLocaleString("zh-CN") : "")}</td>
+                    <td>${escapeHtml(user.adviceSummary || "")}</td>
                     <td>${escapeHtml(user.mbti || "")}</td>
                     <td>${user.reports}</td>
                     <td>${escapeHtml([user.profile.province, user.profile.score, user.profile.rank].filter(Boolean).join(" / "))}</td>

@@ -64,6 +64,8 @@ npm run dev
 - [x] 报告增加“待补充信息与人工复核建议”板块，避免报告看起来像最终录取承诺。
 - [x] 增加用户基础信息字段：省份、选科、分数、位次、预算、目标城市、专业偏好。
 - [x] 在对话开始前用表单收集关键字段，减少 AI 首轮追问成本。
+- [x] 报告生成前检查省份、选科、分数、位次、目标城市、专业兴趣；缺项时要求用户确认后才生成初版报告。
+- [x] AI 回复沉淀结构化摘要，后台可快速查看建议方向、风险点和下一步资料。
 
 ### P2：稳定性、安全与可维护性
 
@@ -71,6 +73,8 @@ npm run dev
 - [x] 增加基础请求限流，降低登录、注册、AI 和报告接口滥用风险。
 - [x] 将本地 JSON 存储增加规范化与备份接口，为后续 PostgreSQL 或复用 `wuhao-tutor` 数据库做准备。
 - [x] 增加健康检查接口 `GET /healthz`。
+- [x] 将 `data/store.json` 写入改为临时文件 + rename 原子写入。
+- [x] 增加 `npm run restore:store -- <backup-json-path>` 恢复脚本，恢复前自动生成安全备份。
 
 ### P3：运营后台与数据沉淀
 
@@ -79,12 +83,14 @@ npm run dev
 - [x] 支持导出 MBTI、AI 对话、报告记录 CSV 与完整运营分析 JSON。
 - [x] 增加来源渠道参数记录：`source`、`utm_source`、`campus`。
 - [x] 统计注册数、完测数、报告生成数、咨询转化线索数。
+- [x] 运营后台增加 AI 建议摘要列，移动端表单和后台筛选控件适配优化。
+- [x] 个人中心增加信息完整度、继续对话和生成报告入口。
 
 ## 6. Mock 与技术债标记
 
 - `campus-config`：默认咨询点可用，真实电话、微信、地址可通过 `CAMPUS_CONFIG_JSON` 覆盖。
 - `mock-ai`：无 API key 时使用本地规则回复，只适合开发与兜底。
-- `json-store`：生产仍使用本地 JSON 文件，已增加备份与运营分析导出接口；暂不迁移 PostgreSQL，后续用户量增长后再迁移数据库。
+- `json-store`：生产仍使用本地 JSON 文件，已增加原子写、备份、恢复脚本与运营分析导出接口；暂不迁移 PostgreSQL，后续用户量增长后再迁移数据库。
 - `brand-assets`：当前使用文字品牌标识，后续可替换正式图片 logo。
 - `route-tests`：已覆盖主流程、认证失败、未登录保护、后台令牌失败、线索/MBTI/对话/报告/JSON 导出、备份接口和登录限流分支。
 
@@ -132,3 +138,14 @@ npm run dev
 - 推荐校区规则：优先匹配来源参数中的校区标识；其次按目标城市中的“济南”“青州/潍坊”匹配；否则使用第一个校区兜底。
 - 生产已部署并确认 `/etc/wuhao-zhiyuan.env` 中 `CAMPUS_CONFIG_JSON` 显式配置真实校区，`wuhao-zhiyuan.service` 已重启且为 `active` / `enabled`。
 - 生产验证：`https://zhiyuan.horsduroot.com/healthz` 正常返回 `ok: true`，`/api/campuses` 返回青州与济南两个真实校区，后台筛选接口 `status=noReport` 已通过鉴权验证。
+
+## 12. 2026-05-30 P1-P3 收尾
+
+- 本地测试：`npm test`，7 项通过。
+- P1：报告前补齐核心信息检查，允许用户明确确认后生成初版报告；AI 回复保存结构化摘要。
+- P2：本地 JSON 存储改为原子写入，新增 `scripts/restore-store.js` 与 `npm run restore:store -- <backup-json-path>`。
+- P3：后台线索表展示建议摘要；个人中心展示资料完整度，并提供继续对话/生成报告入口；移动端布局做了基本适配。
+- 生产已部署：生产代码备份为 `/opt/wuhao-zhiyuan-deploy-backups/code-20260530155046.tar.gz`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，7 项通过。
+- 生产服务：`wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
+- 生产验证：`/healthz` 返回 `ok: true`，公网首页返回 `HTTP/2 200`，`/api/campuses` 返回青州与济南两个真实校区，线索 CSV 表头包含 `adviceSummary`。

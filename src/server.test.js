@@ -173,6 +173,7 @@ test("supports the main user flow and admin summary", async () => {
     assert.equal(fullExport.data.users[0].passwordHash, undefined);
     assert.equal(fullExport.data.sessions, undefined);
     assert.equal(fullExport.data.chatSessions[0].messages.some((message) => message.source === "mock-ai"), true);
+    assert.equal(typeof fullExport.data.chatSessions[0].messages.at(-1).summary.direction, "string");
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -251,7 +252,7 @@ test("exports leads and creates admin backups", async () => {
     });
     const csv = await csvResponse.text();
     assert.equal(csvResponse.status, 200);
-    assert.match(csv, /^name,gender,phone,source,recommendedCampus,createdAt,lastChatAt,mbti,reports,latestReportAt,profileCompleteness,/);
+    assert.match(csv, /^name,gender,phone,source,recommendedCampus,createdAt,lastChatAt,mbti,reports,latestReportAt,profileCompleteness,adviceSummary,/);
     assert.match(csv, /"线索学生","女","13900000003"/);
 
     const backup = await request(baseUrl, "/api/admin/backup", {
@@ -262,6 +263,57 @@ test("exports leads and creates admin backups", async () => {
     assert.equal(backup.response.status, 200);
     assert.equal(backup.data.ok, true);
     assert.equal(fs.existsSync(backup.data.backupPath), true);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("requires confirmation before generating incomplete reports", async () => {
+  const { server, baseUrl } = await listen();
+  try {
+    const registered = await request(baseUrl, "/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "缺项学生",
+        gender: "男",
+        phone: "13900000004",
+        password: "secret123",
+        privacyConsent: true,
+      }),
+    });
+    assert.equal(registered.response.status, 200);
+    const cookie = getSessionCookie(registered.response);
+
+    const mbti = await request(baseUrl, "/api/mbti/submit", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ answers: questions.map(() => 4) }),
+    });
+    assert.equal(mbti.response.status, 200);
+
+    const chat = await request(baseUrl, "/api/chat/message", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ message: "我还没有整理完整成绩信息。" }),
+    });
+    assert.equal(chat.response.status, 200);
+
+    const rejected = await request(baseUrl, "/api/report/generate", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: "{}",
+    });
+    assert.equal(rejected.response.status, 409);
+    assert.equal(rejected.data.code, "PROFILE_INCOMPLETE");
+    assert.equal(rejected.data.missingFields.some((item) => item.field === "score"), true);
+
+    const confirmed = await request(baseUrl, "/api/report/generate", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ confirmIncomplete: true }),
+    });
+    assert.equal(confirmed.response.status, 200);
+    assert.match(confirmed.data.downloadUrl, /^\/reports\/report_/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

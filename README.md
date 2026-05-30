@@ -10,6 +10,13 @@ npm install
 PORT=18082 npm start
 ```
 
+常用维护命令：
+
+```bash
+npm test
+npm run restore:store -- data/backups/store-xxx.json
+```
+
 访问：
 
 ```text
@@ -36,7 +43,7 @@ http://127.0.0.1:18082
 - `/healthz`：健康检查
 - `/api/admin/leads.csv`：线索 CSV 导出
 - `/api/admin/summary?source=&campus=&status=`：运营后台筛选，支持来源、推荐校区和线索状态过滤
-- `/api/admin/leads.csv?source=&campus=&status=`：带筛选条件的线索 CSV 导出，包含推荐校区、信息完整度、最近对话和报告状态
+- `/api/admin/leads.csv?source=&campus=&status=`：带筛选条件的线索 CSV 导出，包含推荐校区、信息完整度、最近对话、报告状态和 AI 建议摘要
 - `/api/admin/mbti.csv`：MBTI 测评结果 CSV 导出
 - `/api/admin/chats.csv`：AI 对话与填报建议 CSV 导出
 - `/api/admin/reports.csv`：报告生成记录 CSV 导出
@@ -49,3 +56,10 @@ http://127.0.0.1:18082
 - `mbtiDone`：已完成 MBTI 测评。
 - `reportDone`：已生成报告。
 - `noReport`：尚未生成报告。
+
+## 质量与安全说明
+
+- 报告生成前会检查省份、选科、分数、位次、目标城市、专业兴趣；信息不完整时需要用户确认后才生成初版报告。
+- AI 对话回复会沉淀结构化摘要，便于运营后台快速判断建议方向、风险点和下一步资料。
+- 本地 JSON 存储使用临时文件 + rename 原子写入，降低并发或异常退出导致 `store.json` 损坏的风险。
+- `npm run restore:store -- <backup-json-path>` 可从备份恢复 `data/store.json`，恢复前会自动创建 `pre-restore-*` 安全备份。

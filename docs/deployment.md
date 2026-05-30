@@ -108,13 +108,14 @@ curl -I https://zhiyuan.horsduroot.com/
 - 报告目录：生产目录下的 `reports/`
 - 后台备份接口：`POST /api/admin/backup`，请求头 `x-admin-token: <ADMIN_TOKEN>`
 - 备份输出目录：`data/backups/`
+- 恢复命令：`PATH=/opt/node-v20/bin:$PATH npm run restore:store -- data/backups/store-xxx.json`，恢复前会自动生成 `pre-restore-*` 安全备份。
 
 ## 数据导出
 
 以下接口均需要请求头 `x-admin-token: <ADMIN_TOKEN>`：
 
 - `GET /api/admin/leads.csv`：线索、分数、位次、目标城市、专业偏好等汇总。
-- `GET /api/admin/leads.csv?source=&campus=&status=`：带筛选条件的线索导出，额外包含推荐校区、信息完整度、最近对话时间和报告生成时间。
+- `GET /api/admin/leads.csv?source=&campus=&status=`：带筛选条件的线索导出，额外包含推荐校区、信息完整度、最近对话时间、报告生成时间和 AI 建议摘要。
 - `GET /api/admin/mbti.csv`：MBTI 类型、8 个维度分数、用户基础画像。
 - `GET /api/admin/chats.csv`：AI 对话消息与填报建议全文，包含回复来源。
 - `GET /api/admin/reports.csv`：PDF 报告生成记录与下载路径。
@@ -168,4 +169,23 @@ ssh -i ~/Downloads/wuhao-ecs.pem root@121.199.173.244 \
 ssh wuhao-tutor-ecs 'systemctl is-active wuhao-zhiyuan && systemctl is-enabled wuhao-zhiyuan'
 curl -fsS https://zhiyuan.horsduroot.com/healthz
 ssh wuhao-tutor-ecs 'TOKEN=$(grep "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env | cut -d= -f2-); curl -fsS -H "x-admin-token: ${TOKEN}" "http://127.0.0.1:18082/api/admin/summary?status=noReport" >/dev/null && echo admin_filter_ok'
+```
+
+## 2026-05-30 P1-P3 部署项
+
+- 已同步代码到 `/opt/wuhao-zhiyuan`，保留生产 `data/`、`reports/` 和 `node_modules/`。
+- 部署前已备份生产代码到 `/opt/wuhao-zhiyuan-deploy-backups/code-20260530155046.tar.gz`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，7 项通过。
+- 报告生成接口会在核心信息缺失时返回 `PROFILE_INCOMPLETE`，前端会要求用户确认后再生成初版报告。
+- `data/store.json` 使用原子写入；如需恢复备份，先在生产目录执行恢复命令，再重启 `wuhao-zhiyuan.service`。
+- `wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
+- 部署验证已通过：公网 `/healthz` 返回 `ok: true`，首页返回 `HTTP/2 200`，`/api/campuses` 返回真实校区，线索 CSV 表头包含 `adviceSummary`。
+- 验证命令：
+
+```bash
+ssh wuhao-tutor-ecs 'cd /opt/wuhao-zhiyuan && PATH=/opt/node-v20/bin:$PATH npm test'
+ssh wuhao-tutor-ecs 'systemctl restart wuhao-zhiyuan && systemctl is-active wuhao-zhiyuan && systemctl is-enabled wuhao-zhiyuan'
+curl -fsS https://zhiyuan.horsduroot.com/healthz
+ssh wuhao-tutor-ecs 'TOKEN=$(grep "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env | cut -d= -f2-); curl -fsS -H "x-admin-token: ${TOKEN}" "http://127.0.0.1:18082/api/admin/leads.csv?status=noReport" | head -n 1'
+curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
 ```

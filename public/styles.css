@@ -276,6 +276,10 @@ textarea {
   margin-bottom: 22px;
 }
 
+.page-head button {
+  flex: 0 0 auto;
+}
+
 .page h1 {
   font-size: clamp(28px, 4vw, 42px);
   margin: 0 0 8px;
@@ -385,6 +389,12 @@ textarea {
   padding: 16px;
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
@@ -473,6 +483,10 @@ td {
   vertical-align: top;
 }
 
+td {
+  min-width: 96px;
+}
+
 @media (max-width: 860px) {
   .topbar {
     align-items: flex-start;
@@ -482,6 +496,17 @@ td {
   .nav {
     width: 100%;
     overflow-x: auto;
+  }
+
+  .page-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-head button,
+  .actions .button {
+    width: 100%;
+    text-align: center;
   }
 
   .hero,

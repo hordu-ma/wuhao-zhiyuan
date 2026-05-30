@@ -69,7 +69,9 @@ function readStore() {
 
 function writeStore(data) {
   ensureStore();
-  fs.writeFileSync(storePath, JSON.stringify(data, null, 2));
+  const tempPath = path.join(dataDir, `.store-${process.pid}-${Date.now()}.tmp`);
+  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2));
+  fs.renameSync(tempPath, storePath);
 }
 
 function updateStore(mutator) {

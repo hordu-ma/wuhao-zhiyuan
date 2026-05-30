@@ -11,6 +11,17 @@ const app = express();
 const port = Number(process.env.PORT || 18082);
 const startedAt = new Date().toISOString();
 const rateBuckets = new Map();
+const profileFieldLabels = {
+  province: "省份",
+  subjects: "选科",
+  score: "总分",
+  rank: "位次",
+  targetCities: "目标城市",
+  majorInterests: "专业兴趣",
+  budget: "家庭预算",
+  acceptance: "民办/中外合作接受度",
+};
+const reportRequiredProfileFields = ["province", "subjects", "score", "rank", "targetCities", "majorInterests"];
 
 function sanitizeText(value, maxLength = 120) {
   return String(value || "").trim().slice(0, maxLength);
@@ -73,9 +84,33 @@ function createStats(store) {
 }
 
 function getProfileCompleteness(profile = {}) {
-  const fields = ["province", "subjects", "score", "rank", "targetCities", "majorInterests", "budget", "acceptance"];
+  const fields = Object.keys(profileFieldLabels);
   const filled = fields.filter((field) => profile[field]).length;
   return { filled, total: fields.length, label: `${filled}/${fields.length}` };
+}
+
+function getMissingProfileFields(profile = {}, fields = reportRequiredProfileFields) {
+  return fields.filter((field) => !profile[field]).map((field) => ({ field, label: profileFieldLabels[field] || field }));
+}
+
+function extractSection(text, title) {
+  const pattern = new RegExp(`${title}[\\s\\S]*?(?=\\n[一二三四五六七八九十]、|$)`);
+  const match = String(text || "").match(pattern);
+  return sanitizeText((match?.[0] || "").replace(title, "").replace(/^[:：\s]+/, ""), 180);
+}
+
+function createAdviceSummary(reply) {
+  return {
+    profile: extractSection(reply, "一、考生画像") || extractSection(reply, "一、考生信息整理"),
+    gap: extractSection(reply, "二、关键信息缺口"),
+    direction: extractSection(reply, "三、院校与专业方向"),
+    risk: extractSection(reply, "四、志愿风险点"),
+    nextStep: extractSection(reply, "五、下一步资料清单"),
+  };
+}
+
+function compactAdviceSummary(summary = {}) {
+  return [summary.direction, summary.risk, summary.nextStep].filter(Boolean).join(" | ");
 }
 
 function latestByCreatedAt(items) {
@@ -87,6 +122,10 @@ function latestByCreatedAt(items) {
 
 function latestMessageAt(session) {
   return latestByCreatedAt(session?.messages || [])?.createdAt || session?.createdAt || "";
+}
+
+function latestAssistantMessage(session) {
+  return (session?.messages || []).filter((message) => message.role === "assistant").at(-1);
 }
 
 function recommendCampus(user, campuses = []) {
@@ -109,6 +148,7 @@ function toLeadRows(store) {
     const latestReport = latestByCreatedAt(reports);
     const sessions = store.chatSessions.filter((item) => item.userId === user.id);
     const latestSession = latestByCreatedAt(sessions);
+    const latestAssistant = latestAssistantMessage(latestSession);
     const profile = user.studentProfile || {};
     const completeness = getProfileCompleteness(profile);
     const campus = recommendCampus(user, store.campuses);
@@ -123,6 +163,7 @@ function toLeadRows(store) {
       reports: reports.length,
       latestReportAt: latestReport?.createdAt || "",
       lastChatAt: latestMessageAt(latestSession),
+      adviceSummary: compactAdviceSummary(latestAssistant?.summary),
       profile,
       profileCompleteness: completeness.label,
       profileComplete: completeness.filled >= 5,
@@ -365,7 +406,7 @@ app.post("/api/chat/message", requireUser, rateLimit({ windowMs: 60 * 1000, max:
       reply = mockReply({ message: content, user: req.user, mbti, campuses: store.campuses });
       source = "mock-ai";
     }
-    session.messages.push({ role: "assistant", content: reply, source, createdAt: new Date().toISOString() });
+    session.messages.push({ role: "assistant", content: reply, source, summary: createAdviceSummary(reply), createdAt: new Date().toISOString() });
     writeStore(store);
     const result = { session, reply, source };
     res.json(result);
@@ -403,6 +444,15 @@ app.post("/api/report/generate", requireUser, rateLimit({ windowMs: 5 * 60 * 100
   const mbti = req.store.mbtiResults.filter((item) => item.userId === req.user.id).at(-1);
   const session = req.store.chatSessions.find((item) => item.userId === req.user.id && !item.closedAt);
   if (!mbti || !session) return res.status(409).json({ error: "请先完成测评和对话" });
+  const missingFields = getMissingProfileFields(req.user.studentProfile || {});
+  const confirmIncomplete = req.body.confirmIncomplete === true || req.body.confirmIncomplete === "true";
+  if (missingFields.length && !confirmIncomplete) {
+    return res.status(409).json({
+      error: "关键信息不完整，请补充后再生成报告，或确认先生成初版报告",
+      code: "PROFILE_INCOMPLETE",
+      missingFields,
+    });
+  }
 
   const report = updateStore((store) => {
     const item = {
@@ -443,7 +493,7 @@ app.get("/api/admin/summary", requireAdmin, (req, res) => {
 app.get("/api/admin/leads.csv", requireAdmin, (req, res) => {
   const store = readStore();
   const rows = filterLeadRows(toLeadRows(store), req.query);
-  const headers = ["name", "gender", "phone", "source", "recommendedCampus", "createdAt", "lastChatAt", "mbti", "reports", "latestReportAt", "profileCompleteness", "province", "subjects", "score", "rank", "targetCities", "majorInterests", "budget", "acceptance"];
+  const headers = ["name", "gender", "phone", "source", "recommendedCampus", "createdAt", "lastChatAt", "mbti", "reports", "latestReportAt", "profileCompleteness", "adviceSummary", "province", "subjects", "score", "rank", "targetCities", "majorInterests", "budget", "acceptance"];
   sendCsv(
     res,
     headers,
@@ -459,6 +509,7 @@ app.get("/api/admin/leads.csv", requireAdmin, (req, res) => {
       reports: row.reports,
       latestReportAt: row.latestReportAt,
       profileCompleteness: row.profileCompleteness,
+      adviceSummary: row.adviceSummary,
       province: row.profile.province,
       subjects: row.profile.subjects,
       score: row.profile.score,
