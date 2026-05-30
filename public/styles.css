@@ -140,6 +140,10 @@ button.block {
   padding-right: clamp(0px, 2vw, 32px);
 }
 
+.hero-main > .button + .notice {
+  margin-top: 18px;
+}
+
 .eyebrow {
   color: var(--gold);
   font-weight: 700;
