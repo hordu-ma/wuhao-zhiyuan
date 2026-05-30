@@ -421,7 +421,7 @@ textarea {
 
 .admin-login {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 0.7fr) minmax(140px, 0.7fr) minmax(140px, 0.7fr) auto auto auto;
   gap: 10px;
   margin-bottom: 14px;
 }

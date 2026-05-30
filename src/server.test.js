@@ -94,6 +94,7 @@ test("supports the main user flow and admin summary", async () => {
         rank: "28000",
         targetCities: "济南、青岛",
         majorInterests: "计算机、自动化",
+        budget: "公办优先",
       }),
     });
     assert.equal(profile.response.status, 200);
@@ -129,6 +130,15 @@ test("supports the main user flow and admin summary", async () => {
     assert.equal(admin.response.status, 200);
     assert.equal(admin.data.stats.users, 1);
     assert.equal(admin.data.stats.reports, 1);
+    assert.equal(admin.data.filters.matched, 1);
+    assert.equal(admin.data.users[0].recommendedCampus, "五好生涯济南咨询中心");
+    assert.equal(admin.data.users[0].profileCompleteness, "7/8");
+
+    const filteredAdmin = await request(baseUrl, "/api/admin/summary?status=reportDone&campus=jinan", {
+      headers: { "x-admin-token": "test-admin-token" },
+    });
+    assert.equal(filteredAdmin.response.status, 200);
+    assert.equal(filteredAdmin.data.filters.matched, 1);
 
     const mbtiCsvResponse = await fetch(`${baseUrl}/api/admin/mbti.csv`, {
       headers: { "x-admin-token": "test-admin-token" },
@@ -241,7 +251,7 @@ test("exports leads and creates admin backups", async () => {
     });
     const csv = await csvResponse.text();
     assert.equal(csvResponse.status, 200);
-    assert.match(csv, /^name,gender,phone,source,createdAt,mbti,reports,/);
+    assert.match(csv, /^name,gender,phone,source,recommendedCampus,createdAt,lastChatAt,mbti,reports,latestReportAt,profileCompleteness,/);
     assert.match(csv, /"线索学生","女","13900000003"/);
 
     const backup = await request(baseUrl, "/api/admin/backup", {

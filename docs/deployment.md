@@ -11,6 +11,7 @@
 - 生产 systemd 服务：`wuhao-zhiyuan.service`
 - 健康检查：`https://zhiyuan.horsduroot.com/healthz`
 - 运营后台：`https://zhiyuan.horsduroot.com/admin`，需要 `ADMIN_TOKEN`
+- 运营筛选：后台支持来源、推荐校区、线索状态筛选；同样参数可用于 `/api/admin/leads.csv`
 - 后台启动命令：
 
 ```bash
@@ -113,10 +114,19 @@ curl -I https://zhiyuan.horsduroot.com/
 以下接口均需要请求头 `x-admin-token: <ADMIN_TOKEN>`：
 
 - `GET /api/admin/leads.csv`：线索、分数、位次、目标城市、专业偏好等汇总。
+- `GET /api/admin/leads.csv?source=&campus=&status=`：带筛选条件的线索导出，额外包含推荐校区、信息完整度、最近对话时间和报告生成时间。
 - `GET /api/admin/mbti.csv`：MBTI 类型、8 个维度分数、用户基础画像。
 - `GET /api/admin/chats.csv`：AI 对话消息与填报建议全文，包含回复来源。
 - `GET /api/admin/reports.csv`：PDF 报告生成记录与下载路径。
 - `GET /api/admin/export.json`：完整运营分析 JSON，不包含密码哈希和登录 session。
+
+线索状态筛选值：
+
+- `profileIncomplete`：考生关键信息少于 5 项。
+- `profileComplete`：考生关键信息至少 5 项。
+- `mbtiDone`：已完成测评。
+- `reportDone`：已生成报告。
+- `noReport`：尚未生成报告。
 
 示例：
 
@@ -144,3 +154,18 @@ ssh -i ~/Downloads/wuhao-ecs.pem root@121.199.173.244 \
 - 公网：`curl -fsS https://zhiyuan.horsduroot.com/healthz` 返回 `ok: true`。
 - 生产机：`systemctl is-active wuhao-zhiyuan` 返回 `active`，`systemctl is-enabled wuhao-zhiyuan` 返回 `enabled`。
 - 环境：`SESSION_SECRET`、`DASHSCOPE_API_KEY`、`DASHSCOPE_MODEL`、`ADMIN_TOKEN` 已配置；`CAMPUS_CONFIG_JSON` 未配置，使用默认咨询点。
+
+## 2026-05-30 P0 运营闭环部署项
+
+- 已同步代码到 `/opt/wuhao-zhiyuan`，保留生产 `data/`、`reports/` 和 `node_modules/`。
+- 部署前已备份生产代码到 `/opt/wuhao-zhiyuan-deploy-backups/code-20260530154159.tar.gz`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，5 项通过。
+- `/etc/wuhao-zhiyuan.env` 已显式配置 `CAMPUS_CONFIG_JSON`，当前真实校区为五好生涯青州咨询中心与五好生涯济南咨询中心。
+- `wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
+- 部署验证已通过：
+
+```bash
+ssh wuhao-tutor-ecs 'systemctl is-active wuhao-zhiyuan && systemctl is-enabled wuhao-zhiyuan'
+curl -fsS https://zhiyuan.horsduroot.com/healthz
+ssh wuhao-tutor-ecs 'TOKEN=$(grep "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env | cut -d= -f2-); curl -fsS -H "x-admin-token: ${TOKEN}" "http://127.0.0.1:18082/api/admin/summary?status=noReport" >/dev/null && echo admin_filter_ok'
+```

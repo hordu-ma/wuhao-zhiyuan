@@ -401,6 +401,19 @@ async function adminPage() {
       </div>
       <section class="admin-login">
         <input data-admin-token placeholder="输入后台访问令牌" value="${escapeAttr(localStorage.getItem("wuhaoAdminToken") || "")}" />
+        <input data-admin-source placeholder="来源筛选" value="${escapeAttr(localStorage.getItem("wuhaoAdminSource") || "")}" />
+        <select data-admin-status>
+          <option value="">全部线索</option>
+          <option value="profileIncomplete">信息待补充</option>
+          <option value="profileComplete">信息较完整</option>
+          <option value="mbtiDone">已完成测评</option>
+          <option value="reportDone">已生成报告</option>
+          <option value="noReport">未生成报告</option>
+        </select>
+        <select data-admin-campus>
+          <option value="">全部校区</option>
+          ${state.campuses.map((campus) => `<option value="${escapeAttr(campus.id || campus.name)}">${escapeHtml(campus.name)}</option>`).join("")}
+        </select>
         <button data-admin-load>加载数据</button>
         <a class="button secondary" data-admin-export href="#">导出线索 CSV</a>
         <button class="secondary" data-admin-backup>备份数据</button>
@@ -415,24 +428,44 @@ async function adminPage() {
   `);
 
   const tokenInput = document.querySelector("[data-admin-token]");
+  const sourceInput = document.querySelector("[data-admin-source]");
+  const statusSelect = document.querySelector("[data-admin-status]");
+  const campusSelect = document.querySelector("[data-admin-campus]");
   const error = document.querySelector("[data-admin-error]");
   const statsBox = document.querySelector("[data-admin-stats]");
   const usersBox = document.querySelector("[data-admin-users]");
   const exportLink = document.querySelector("[data-admin-export]");
+  statusSelect.value = localStorage.getItem("wuhaoAdminStatus") || "";
+  campusSelect.value = localStorage.getItem("wuhaoAdminCampus") || "";
+
+  function adminQuery(token) {
+    const params = new URLSearchParams({ token });
+    const source = sourceInput.value.trim();
+    const status = statusSelect.value;
+    const campus = campusSelect.value;
+    if (source) params.set("source", source);
+    if (status) params.set("status", status);
+    if (campus) params.set("campus", campus);
+    return params.toString();
+  }
 
   async function loadAdmin() {
     error.textContent = "";
     const token = tokenInput.value.trim();
     localStorage.setItem("wuhaoAdminToken", token);
-    exportLink.href = `/api/admin/leads.csv?token=${encodeURIComponent(token)}`;
+    localStorage.setItem("wuhaoAdminSource", sourceInput.value.trim());
+    localStorage.setItem("wuhaoAdminStatus", statusSelect.value);
+    localStorage.setItem("wuhaoAdminCampus", campusSelect.value);
+    const query = adminQuery(token);
+    exportLink.href = `/api/admin/leads.csv?${query}`;
     try {
-      const data = await api("/api/admin/summary", { headers: { "x-admin-token": token } });
-      statsBox.innerHTML = Object.entries(data.stats)
+      const data = await api(`/api/admin/summary?${query}`, { headers: { "x-admin-token": token } });
+      statsBox.innerHTML = Object.entries({ ...data.stats, matched: data.filters?.matched || 0 })
         .map(([key, value]) => `<article class="stat"><strong>${value}</strong><span>${key}</span></article>`)
         .join("");
       usersBox.innerHTML = `
         <table>
-          <thead><tr><th>姓名</th><th>手机号</th><th>来源</th><th>MBTI</th><th>报告</th><th>省份/分数/位次</th></tr></thead>
+          <thead><tr><th>姓名</th><th>手机号</th><th>来源</th><th>推荐校区</th><th>完整度</th><th>最近对话</th><th>MBTI</th><th>报告</th><th>省份/分数/位次</th></tr></thead>
           <tbody>
             ${data.users
               .map(
@@ -441,6 +474,9 @@ async function adminPage() {
                     <td>${escapeHtml(user.name)}</td>
                     <td>${escapeHtml(user.phone)}</td>
                     <td>${escapeHtml(user.source || "")}</td>
+                    <td>${escapeHtml(user.recommendedCampus || "")}</td>
+                    <td>${escapeHtml(user.profileCompleteness || "")}</td>
+                    <td>${escapeHtml(user.lastChatAt ? new Date(user.lastChatAt).toLocaleString("zh-CN") : "")}</td>
                     <td>${escapeHtml(user.mbti || "")}</td>
                     <td>${user.reports}</td>
                     <td>${escapeHtml([user.profile.province, user.profile.score, user.profile.rank].filter(Boolean).join(" / "))}</td>

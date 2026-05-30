@@ -72,10 +72,46 @@ function createStats(store) {
   };
 }
 
+function getProfileCompleteness(profile = {}) {
+  const fields = ["province", "subjects", "score", "rank", "targetCities", "majorInterests", "budget", "acceptance"];
+  const filled = fields.filter((field) => profile[field]).length;
+  return { filled, total: fields.length, label: `${filled}/${fields.length}` };
+}
+
+function latestByCreatedAt(items) {
+  return items
+    .filter((item) => item?.createdAt)
+    .sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)))
+    .at(-1);
+}
+
+function latestMessageAt(session) {
+  return latestByCreatedAt(session?.messages || [])?.createdAt || session?.createdAt || "";
+}
+
+function recommendCampus(user, campuses = []) {
+  const source = String(user.source || "").toLowerCase();
+  const targetCities = String(user.studentProfile?.targetCities || "");
+  const matchedBySource = campuses.find((campus) => {
+    const values = [campus.id, campus.name, campus.phone, campus.wechat].filter(Boolean).map((value) => String(value).toLowerCase());
+    return values.some((value) => value && source.includes(value));
+  });
+  if (matchedBySource) return matchedBySource;
+  if (/济南/.test(targetCities)) return campuses.find((campus) => /济南/.test(campus.name) || /济南/.test(campus.address)) || campuses[0] || {};
+  if (/青州|潍坊/.test(targetCities)) return campuses.find((campus) => /青州|潍坊/.test(campus.name) || /青州|潍坊/.test(campus.address)) || campuses[0] || {};
+  return campuses[0] || {};
+}
+
 function toLeadRows(store) {
   return store.users.map((user) => {
     const mbti = store.mbtiResults.filter((item) => item.userId === user.id).at(-1);
     const reports = store.reports.filter((item) => item.userId === user.id);
+    const latestReport = latestByCreatedAt(reports);
+    const sessions = store.chatSessions.filter((item) => item.userId === user.id);
+    const latestSession = latestByCreatedAt(sessions);
+    const profile = user.studentProfile || {};
+    const completeness = getProfileCompleteness(profile);
+    const campus = recommendCampus(user, store.campuses);
     return {
       id: user.id,
       name: user.name,
@@ -85,8 +121,33 @@ function toLeadRows(store) {
       createdAt: user.createdAt,
       mbti: mbti?.type || "",
       reports: reports.length,
-      profile: user.studentProfile || {},
+      latestReportAt: latestReport?.createdAt || "",
+      lastChatAt: latestMessageAt(latestSession),
+      profile,
+      profileCompleteness: completeness.label,
+      profileComplete: completeness.filled >= 5,
+      recommendedCampus: campus.name || "",
+      recommendedCampusId: campus.id || "",
     };
+  });
+}
+
+function filterLeadRows(rows, query = {}) {
+  const source = sanitizeText(query.source, 80).toLowerCase();
+  const campus = sanitizeText(query.campus, 80).toLowerCase();
+  const status = sanitizeText(query.status, 40);
+  return rows.filter((row) => {
+    if (source && !String(row.source || "").toLowerCase().includes(source)) return false;
+    if (campus) {
+      const campusText = `${row.recommendedCampus} ${row.recommendedCampusId}`.toLowerCase();
+      if (!campusText.includes(campus)) return false;
+    }
+    if (status === "profileComplete" && !row.profileComplete) return false;
+    if (status === "profileIncomplete" && row.profileComplete) return false;
+    if (status === "mbtiDone" && !row.mbti) return false;
+    if (status === "reportDone" && !row.reports) return false;
+    if (status === "noReport" && row.reports) return false;
+    return true;
   });
 }
 
@@ -364,9 +425,16 @@ app.use("/reports", express.static(reportDir));
 
 app.get("/api/admin/summary", requireAdmin, (req, res) => {
   const store = readStore();
+  const rows = filterLeadRows(toLeadRows(store), req.query);
   res.json({
     stats: createStats(store),
-    users: toLeadRows(store).slice(-100).reverse(),
+    filters: {
+      source: sanitizeText(req.query.source, 80),
+      campus: sanitizeText(req.query.campus, 80),
+      status: sanitizeText(req.query.status, 40),
+      matched: rows.length,
+    },
+    users: rows.slice(-100).reverse(),
     campuses: store.campuses,
     backupDir,
   });
@@ -374,8 +442,8 @@ app.get("/api/admin/summary", requireAdmin, (req, res) => {
 
 app.get("/api/admin/leads.csv", requireAdmin, (req, res) => {
   const store = readStore();
-  const rows = toLeadRows(store);
-  const headers = ["name", "gender", "phone", "source", "createdAt", "mbti", "reports", "province", "subjects", "score", "rank", "targetCities", "majorInterests", "budget", "acceptance"];
+  const rows = filterLeadRows(toLeadRows(store), req.query);
+  const headers = ["name", "gender", "phone", "source", "recommendedCampus", "createdAt", "lastChatAt", "mbti", "reports", "latestReportAt", "profileCompleteness", "province", "subjects", "score", "rank", "targetCities", "majorInterests", "budget", "acceptance"];
   sendCsv(
     res,
     headers,
@@ -384,9 +452,13 @@ app.get("/api/admin/leads.csv", requireAdmin, (req, res) => {
       gender: row.gender,
       phone: row.phone,
       source: row.source,
+      recommendedCampus: row.recommendedCampus,
       createdAt: row.createdAt,
+      lastChatAt: row.lastChatAt,
       mbti: row.mbti,
       reports: row.reports,
+      latestReportAt: row.latestReportAt,
+      profileCompleteness: row.profileCompleteness,
       province: row.profile.province,
       subjects: row.profile.subjects,
       score: row.profile.score,

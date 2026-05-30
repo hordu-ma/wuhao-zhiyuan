@@ -54,6 +54,9 @@ npm run dev
 - [x] 替换 `temp-logo`：保留文字品牌标识，去除 mock 标记，后续可用正式素材替换。
 - [x] 梳理隐私提示与用户授权文案，说明手机号、测评、对话和报告用途。
 - [x] 明确生产数据备份策略，覆盖 `data/store.json`、`reports/` 和后台备份接口。
+- [x] 运营后台增加来源、推荐校区和线索状态筛选，支持快速定位待跟进用户。
+- [x] 线索导出增加推荐校区、信息完整度、最近对话时间、报告生成状态等运营跟进字段。
+- [x] 生产环境显式配置真实校区 `CAMPUS_CONFIG_JSON`，避免依赖代码默认值。
 
 ### P1：咨询质量与转化增强
 
@@ -119,3 +122,13 @@ npm run dev
 - 生产环境配置：`SESSION_SECRET`、`DASHSCOPE_API_KEY`、`DASHSCOPE_MODEL`、`ADMIN_TOKEN` 已配置。
 - 咨询点配置：`CAMPUS_CONFIG_JSON` 未配置，当前使用默认“五好生涯青州咨询中心”和“五好生涯济南咨询中心”。
 - 备份演练：已通过 `POST /api/admin/backup` 生成生产备份 `store-2026-05-26T06-07-55-555Z.json`。
+
+## 11. 2026-05-30 P0 运营数据闭环
+
+- 本地测试：`npm test`，5 项通过。
+- 后台 `/admin` 增加来源、状态、校区筛选，筛选条件同步用于线索 CSV 导出。
+- `/api/admin/summary` 返回 `filters.matched`，并在线索列表中展示推荐校区、信息完整度、最近对话时间。
+- `/api/admin/leads.csv` 增加 `recommendedCampus`、`lastChatAt`、`latestReportAt`、`profileCompleteness` 字段。
+- 推荐校区规则：优先匹配来源参数中的校区标识；其次按目标城市中的“济南”“青州/潍坊”匹配；否则使用第一个校区兜底。
+- 生产已部署并确认 `/etc/wuhao-zhiyuan.env` 中 `CAMPUS_CONFIG_JSON` 显式配置真实校区，`wuhao-zhiyuan.service` 已重启且为 `active` / `enabled`。
+- 生产验证：`https://zhiyuan.horsduroot.com/healthz` 正常返回 `ok: true`，`/api/campuses` 返回青州与济南两个真实校区，后台筛选接口 `status=noReport` 已通过鉴权验证。

@@ -35,7 +35,17 @@ http://127.0.0.1:18082
 - `/admin`：运营后台，依赖 `ADMIN_TOKEN`
 - `/healthz`：健康检查
 - `/api/admin/leads.csv`：线索 CSV 导出
+- `/api/admin/summary?source=&campus=&status=`：运营后台筛选，支持来源、推荐校区和线索状态过滤
+- `/api/admin/leads.csv?source=&campus=&status=`：带筛选条件的线索 CSV 导出，包含推荐校区、信息完整度、最近对话和报告状态
 - `/api/admin/mbti.csv`：MBTI 测评结果 CSV 导出
 - `/api/admin/chats.csv`：AI 对话与填报建议 CSV 导出
 - `/api/admin/reports.csv`：报告生成记录 CSV 导出
 - `/api/admin/export.json`：去除密码哈希和登录 session 后的完整运营分析 JSON 导出
+
+## 运营筛选状态
+
+- `profileIncomplete`：考生关键信息少于 5 项，适合优先补资料。
+- `profileComplete`：考生关键信息至少 5 项，适合进入人工复核。
+- `mbtiDone`：已完成 MBTI 测评。
+- `reportDone`：已生成报告。
+- `noReport`：尚未生成报告。
