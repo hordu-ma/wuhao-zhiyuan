@@ -312,11 +312,18 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 7px;
   cursor: pointer;
+  text-align: center;
 }
 
 .scale input {
   width: auto;
   margin: 0 0 4px;
+}
+
+.scale small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .chat-layout {

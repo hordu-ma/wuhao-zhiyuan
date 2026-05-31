@@ -189,3 +189,11 @@ curl -fsS https://zhiyuan.horsduroot.com/healthz
 ssh wuhao-tutor-ecs 'TOKEN=$(grep "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env | cut -d= -f2-); curl -fsS -H "x-admin-token: ${TOKEN}" "http://127.0.0.1:18082/api/admin/leads.csv?status=noReport" | head -n 1'
 curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
 ```
+
+## 2026-06-01 MBTI 测评体系部署项
+
+- 本次变更：MBTI 测评题库从 32 道扩展为 48 道，新增四个维度的倾向强度解释，并对 `/api/mbti/submit` 增加 1-5 分值校验。
+- 本地测试：`npm test`，9 项通过。
+- 部署方式：同步代码到 `/opt/wuhao-zhiyuan`，保留生产 `data/`、`reports/` 和 `node_modules/`。
+- 回滚方式：使用部署前代码备份恢复 `/opt/wuhao-zhiyuan` 代码文件，保留 `data/`、`reports/` 和 `node_modules/`，然后重启 `wuhao-zhiyuan.service`。
+- 待部署后补充：生产代码备份路径、生产测试结果、服务状态和公网验证结果。

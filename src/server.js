@@ -351,6 +351,9 @@ app.get("/api/mbti/latest", requireUser, (req, res) => {
 app.post("/api/mbti/submit", requireUser, (req, res) => {
   const answers = Array.isArray(req.body.answers) ? req.body.answers : [];
   if (answers.length !== questions.length) return res.status(400).json({ error: "请完成全部测评题目" });
+  if (answers.some((answer) => !Number.isInteger(Number(answer)) || Number(answer) < 1 || Number(answer) > 5)) {
+    return res.status(400).json({ error: "测评分值必须在 1 到 5 之间" });
+  }
   const scored = scoreMbti(answers);
   const result = updateStore((store) => {
     const mbti = {

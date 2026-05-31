@@ -179,6 +179,36 @@ test("supports the main user flow and admin summary", async () => {
   }
 });
 
+test("rejects invalid MBTI answer values", async () => {
+  const { server, baseUrl } = await listen();
+  try {
+    const registered = await request(baseUrl, "/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "无效测评学生",
+        gender: "女",
+        phone: "13900000991",
+        password: "secret123",
+        privacyConsent: true,
+      }),
+    });
+    const cookie = getSessionCookie(registered.response);
+    const answers = questions.map(() => 3);
+    answers[0] = 6;
+
+    const result = await request(baseUrl, "/api/mbti/submit", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ answers }),
+    });
+
+    assert.equal(result.response.status, 400);
+    assert.equal(result.data.error, "测评分值必须在 1 到 5 之间");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("rejects invalid auth and protects user routes", async () => {
   const { server, baseUrl } = await listen();
   try {

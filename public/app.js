@@ -142,7 +142,7 @@ function home() {
         </p>
         <div class="steps">
           <article class="step"><strong>1. 注册登录</strong>使用手机号和密码建立个人档案，姓名与性别用于报告生成。</article>
-          <article class="step"><strong>2. 完成测评</strong>提交 32 道人格倾向题，系统自动计算 MBTI 倾向。</article>
+          <article class="step"><strong>2. 完成测评</strong>提交 48 道人格倾向题，系统自动计算 MBTI 倾向。</article>
           <article class="step"><strong>3. AI初评</strong>输入分数与位次，获得院校、专业和风险提示。</article>
         </div>
         <a class="button" href="/assessment/mbti">进入系统</a>
@@ -176,7 +176,7 @@ async function mbtiPage() {
       <div class="page-head">
         <div>
           <h1>16型人格倾向测评</h1>
-          <p class="lead">请选择每句话与自己的符合程度。提交后将直接进入志愿对话，完整结果会整合进报告。</p>
+          <p class="lead">请按真实习惯选择符合程度，1 为非常不符合，5 为非常符合。提交后将直接进入志愿对话，完整结果会整合进报告。</p>
         </div>
       </div>
       <form class="questions" data-mbti-form>
@@ -186,12 +186,19 @@ async function mbtiPage() {
               <article class="question">
                 <strong>${index + 1}. ${question.text}</strong>
                 <div class="scale">
-                  ${[1, 2, 3, 4, 5]
+                  ${[
+                    [1, "非常不符合"],
+                    [2, "比较不符合"],
+                    [3, "不确定"],
+                    [4, "比较符合"],
+                    [5, "非常符合"],
+                  ]
                     .map(
-                      (value) => `
+                      ([value, label]) => `
                         <label>
                           <input type="radio" name="q${index}" value="${value}" required />
-                          ${value}
+                          <span>${value}</span>
+                          <small>${label}</small>
                         </label>
                       `
                     )
