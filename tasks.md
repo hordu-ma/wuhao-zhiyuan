@@ -157,4 +157,8 @@ npm run dev
 - `scoreMbti` 保持原有 `type`、`scores`、`summary` 兼容，并新增 `preferences`，用于记录四个维度的倾向、强度和解释。
 - `/api/mbti/submit` 增加 1-5 分值校验，避免非法答案进入测评记录。
 - 前端测评页补充 1-5 分含义，首页题量文案已同步为 48 道。
+- 生产已部署：生产代码备份为 `/opt/wuhao-zhiyuan-deploy-backups/code-20260601073641.tar.gz`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，9 项通过。
+- 生产服务：`wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
+- 生产验证：`/healthz` 返回 `ok: true`，公网首页返回 `HTTP/2 200`，公网 `/api/mbti/questions` 返回 48 道题。
 - 回滚方式：恢复 `src/mbti.js`、`src/server.js`、`public/app.js`、`public/styles.css` 和对应测试文件；生产回滚时保留 `data/`、`reports/`、`node_modules/`。

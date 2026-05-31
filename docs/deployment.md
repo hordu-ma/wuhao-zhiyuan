@@ -195,5 +195,17 @@ curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
 - 本次变更：MBTI 测评题库从 32 道扩展为 48 道，新增四个维度的倾向强度解释，并对 `/api/mbti/submit` 增加 1-5 分值校验。
 - 本地测试：`npm test`，9 项通过。
 - 部署方式：同步代码到 `/opt/wuhao-zhiyuan`，保留生产 `data/`、`reports/` 和 `node_modules/`。
+- 部署前已备份生产代码到 `/opt/wuhao-zhiyuan-deploy-backups/code-20260601073641.tar.gz`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，9 项通过。
+- `wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
+- 部署验证已通过：生产机本地 `/healthz` 返回 `ok: true`，生产机本地 `/api/mbti/questions` 返回 48 道题；公网 `/healthz` 返回 `ok: true`，首页返回 `HTTP/2 200`，公网 `/api/mbti/questions` 返回 48 道题。
 - 回滚方式：使用部署前代码备份恢复 `/opt/wuhao-zhiyuan` 代码文件，保留 `data/`、`reports/` 和 `node_modules/`，然后重启 `wuhao-zhiyuan.service`。
-- 待部署后补充：生产代码备份路径、生产测试结果、服务状态和公网验证结果。
+- 验证命令：
+
+```bash
+ssh -i /home/pgx/Downloads/wuhao-ecs.pem -o IdentitiesOnly=yes root@121.199.173.244 'cd /opt/wuhao-zhiyuan && PATH=/opt/node-v20/bin:$PATH npm test'
+ssh -i /home/pgx/Downloads/wuhao-ecs.pem -o IdentitiesOnly=yes root@121.199.173.244 'systemctl restart wuhao-zhiyuan && systemctl is-active wuhao-zhiyuan && systemctl is-enabled wuhao-zhiyuan'
+curl -fsS https://zhiyuan.horsduroot.com/healthz
+curl -fsS https://zhiyuan.horsduroot.com/api/mbti/questions | grep -o '"id":' | wc -l
+curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
+```
