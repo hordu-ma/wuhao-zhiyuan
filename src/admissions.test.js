@@ -8,12 +8,13 @@ test("returns a safe empty context when admissions data is missing", () => {
   const previousPath = process.env.ADMISSIONS_DATA_PATH;
   process.env.ADMISSIONS_DATA_PATH = path.join(os.tmpdir(), `missing-admissions-${Date.now()}.json`);
   delete require.cache[require.resolve("./admissions")];
-  const { retrieveAdmissionContext } = require("./admissions");
+  const { retrieveAdmissionContext, hasAdmissionCandidates } = require("./admissions");
 
   const context = retrieveAdmissionContext({ province: "山东", subjects: "物化生", rank: "28000" });
 
   assert.equal(context.examYear, 2026);
   assert.equal(context.dataLoaded, false);
+  assert.equal(hasAdmissionCandidates(context), false);
   assert.equal(context.warnings.some((warning) => warning.includes("未配置招生数据文件")), true);
 
   if (previousPath) process.env.ADMISSIONS_DATA_PATH = previousPath;
@@ -40,7 +41,7 @@ test("retrieves and buckets admission records by rank", () => {
   );
   process.env.ADMISSIONS_DATA_PATH = filePath;
   delete require.cache[require.resolve("./admissions")];
-  const { retrieveAdmissionContext } = require("./admissions");
+  const { retrieveAdmissionContext, hasAdmissionCandidates } = require("./admissions");
 
   const context = retrieveAdmissionContext({
     province: "山东",
@@ -54,6 +55,7 @@ test("retrieves and buckets admission records by rank", () => {
   assert.equal(context.candidates.rush[0].schoolName, "冲刺大学");
   assert.equal(context.candidates.stable[0].schoolName, "稳妥大学");
   assert.equal(context.candidates.safety[0].schoolName, "保底大学");
+  assert.equal(hasAdmissionCandidates(context), true);
   assert.equal(context.warnings.some((warning) => warning.includes("历史参考")), true);
 
   if (previousPath) process.env.ADMISSIONS_DATA_PATH = previousPath;

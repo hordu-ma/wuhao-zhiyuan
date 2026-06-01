@@ -176,4 +176,8 @@ function formatAdmissionContext(context) {
   return JSON.stringify(context, null, 2);
 }
 
-module.exports = { examYear, loadAdmissionsData, retrieveAdmissionContext, formatAdmissionContext };
+function hasAdmissionCandidates(context = {}) {
+  return Object.values(context.candidates || {}).some((items) => Array.isArray(items) && items.length > 0);
+}
+
+module.exports = { examYear, loadAdmissionsData, retrieveAdmissionContext, formatAdmissionContext, hasAdmissionCandidates };
