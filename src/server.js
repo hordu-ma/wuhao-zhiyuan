@@ -4,6 +4,7 @@ const cookieParser = require("cookie-parser");
 const { readStore, writeStore, updateStore, backupStore, storePath, backupDir } = require("./store");
 const { questions, scoreMbti } = require("./mbti");
 const { buildSystemPrompt, callDashScope, mockReply } = require("./ai");
+const { retrieveAdmissionContext } = require("./admissions");
 const { generateReport, reportDir } = require("./report");
 const { hashPassword, verifyPassword, id, createSession, clearSession, getCurrentUser, publicUser } = require("./auth");
 
@@ -402,11 +403,12 @@ app.post("/api/chat/message", requireUser, rateLimit({ windowMs: 60 * 1000, max:
     }
 
     session.messages.push({ role: "user", content, createdAt: new Date().toISOString() });
-    const systemPrompt = buildSystemPrompt({ user: req.user, mbti, campuses: store.campuses });
+    const admissionContext = retrieveAdmissionContext(req.user.studentProfile || {});
+    const systemPrompt = buildSystemPrompt({ user: req.user, mbti, campuses: store.campuses, admissionContext });
     let reply = await callDashScope({ systemPrompt, messages: session.messages });
     let source = "dashscope";
     if (!reply) {
-      reply = mockReply({ message: content, user: req.user, mbti, campuses: store.campuses });
+      reply = mockReply({ message: content, user: req.user, mbti, campuses: store.campuses, admissionContext });
       source = "mock-ai";
     }
     session.messages.push({ role: "assistant", content: reply, source, summary: createAdviceSummary(reply), createdAt: new Date().toISOString() });

@@ -31,6 +31,8 @@ http://127.0.0.1:18082
 - `DASHSCOPE_MODEL`：模型名，默认 `qwen-plus`
 - `ADMIN_TOKEN`：运营后台访问令牌，访问 `/admin` 时使用
 - `CAMPUS_CONFIG_JSON`：可选，JSON 数组形式的校区配置，会覆盖默认咨询点
+- `EXAM_YEAR`：当前服务面向的高考年份，默认 `2026`
+- `ADMISSIONS_DATA_PATH`：可选，招生数据 JSON 路径，默认读取 `data/admissions.json`
 
 未配置阿里云密钥时，系统会使用本地 mock 志愿建议，详见 `tasks.md`。
 
@@ -48,6 +50,13 @@ http://127.0.0.1:18082
 - `/api/admin/chats.csv`：AI 对话与填报建议 CSV 导出
 - `/api/admin/reports.csv`：报告生成记录 CSV 导出
 - `/api/admin/export.json`：去除密码哈希和登录 session 后的完整运营分析 JSON 导出
+
+## 招生数据更新
+
+- 大模型只解释系统提供的数据，不应自行编造院校最低分、最低位次、招生计划、学费或专业组代码。
+- 默认招生数据文件为 `data/admissions.json`，该目录不提交 git；可参考 [docs/admissions-data.example.json](docs/admissions-data.example.json) 导入官方数据。
+- 若未配置招生数据，系统会要求模型只输出方向性建议、风险提示和待补充数据清单。
+- 2026 年一分一段表、招生计划和正式录取结果需要在官方发布后更新，历史录取数据必须标明年份。
 
 ## 运营筛选状态
 

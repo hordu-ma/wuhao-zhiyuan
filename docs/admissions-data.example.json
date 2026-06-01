@@ -1,0 +1,25 @@
+{
+  "examYear": 2026,
+  "updatedAt": "2026-06-01T00:00:00.000Z",
+  "sourceName": "示例数据，请替换为省教育考试院、阳光高考或学校招生网等官方来源",
+  "sourceUrl": "https://example.com/replace-with-official-source",
+  "records": [
+    {
+      "province": "山东",
+      "schoolName": "示例大学",
+      "majorName": "计算机科学与技术",
+      "city": "济南",
+      "schoolLevel": "公办本科",
+      "subjectRequirements": "物理,化学",
+      "planCount": 60,
+      "tuition": "待官方确认",
+      "admissionYear": 2025,
+      "minScore": 610,
+      "minRank": 28500,
+      "avgRank": 26000,
+      "sourceName": "示例来源，导入真实数据时必须替换",
+      "sourceUrl": "https://example.com/replace-record-source",
+      "updatedAt": "2026-06-01T00:00:00.000Z"
+    }
+  ]
+}

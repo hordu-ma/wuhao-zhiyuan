@@ -9,6 +9,7 @@
 - 生产应用目录：`/opt/wuhao-zhiyuan`
 - 生产环境文件：`/etc/wuhao-zhiyuan.env`
 - 生产 systemd 服务：`wuhao-zhiyuan.service`
+- 招生数据文件：默认 `/opt/wuhao-zhiyuan/data/admissions.json`，可用 `ADMISSIONS_DATA_PATH` 覆盖。
 - 健康检查：`https://zhiyuan.horsduroot.com/healthz`
 - 运营后台：`https://zhiyuan.horsduroot.com/admin`，需要 `ADMIN_TOKEN`
 - 运营筛选：后台支持来源、推荐校区、线索状态筛选；同样参数可用于 `/api/admin/leads.csv`
@@ -120,6 +121,15 @@ curl -I https://zhiyuan.horsduroot.com/
 - `GET /api/admin/chats.csv`：AI 对话消息与填报建议全文，包含回复来源。
 - `GET /api/admin/reports.csv`：PDF 报告生成记录与下载路径。
 - `GET /api/admin/export.json`：完整运营分析 JSON，不包含密码哈希和登录 session。
+
+## 招生数据维护
+
+- 当前服务默认面向 `EXAM_YEAR=2026`，可在 `/etc/wuhao-zhiyuan.env` 中显式配置。
+- 招生数据默认读取生产目录下的 `data/admissions.json`；该文件属于运行数据，不随 git 部署覆盖。
+- 数据格式参考仓库内 `docs/admissions-data.example.json`。
+- 推荐来源优先级：省教育考试院官方发布的一分一段表、招生计划、投档线；阳光高考；高校招生网章程和分专业计划。
+- 更新招生数据后需要重启服务：`systemctl restart wuhao-zhiyuan`。
+- 如果没有导入招生数据，大模型会被约束为只输出方向性建议和资料清单，不输出具体院校线或计划数。
 
 线索状态筛选值：
 

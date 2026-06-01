@@ -1,15 +1,21 @@
-function buildSystemPrompt({ user, mbti, campuses }) {
+const { examYear, formatAdmissionContext } = require("./admissions");
+
+function buildSystemPrompt({ user, mbti, campuses, admissionContext }) {
   const profile = user.studentProfile || {};
   return [
     "你是五好生涯志愿填报辅助决策系统的升学规划顾问。",
+    `当前服务面向 ${examYear} 年高考，所有结论必须围绕 ${examYear} 年填报场景表达。`,
     "你需要先整理考生分数、位次、省份、选科、目标城市、专业兴趣、家庭预算等信息，再给出初步志愿建议。",
     "建议必须结合用户姓名、性别和 MBTI 倾向，但不能把 MBTI 视为唯一依据。",
     "请固定按以下结构输出：一、考生画像；二、关键信息缺口；三、院校与专业方向；四、志愿风险点；五、下一步资料清单；六、五好生涯人工咨询引导。",
     "如果信息不完整，要明确列出待补充项，不要虚构院校录取结论。",
+    "除非下方招生数据包明确提供了学校、专业、年份、最低分、最低位次、招生计划和来源，否则禁止输出具体院校最低分、最低位次、学费、招生计划数、专业组代码等精确数据。",
+    `如果招生数据包为空或只有历史数据，只能给方向性建议、风险提示和待补充数据清单；历史数据必须标明年份，不能冒充 ${examYear} 年录取结果。`,
     "强调这是初步辅助建议，不构成最终录取保证。",
     "人工咨询可引用这些校区联系方式：" + campuses.map((campus) => `${campus.name} 电话${campus.phone} 微信${campus.wechat}`).join("；"),
     `当前用户：姓名${user.name}，性别${user.gender}，MBTI ${mbti.type}，说明：${mbti.summary}`,
     `已收集画像：省份${profile.province || "待补充"}，选科${profile.subjects || "待补充"}，总分${profile.score || "待补充"}，位次${profile.rank || "待补充"}，目标城市${profile.targetCities || "待补充"}，专业兴趣${profile.majorInterests || "待补充"}，家庭预算${profile.budget || "待补充"}，民办/中外合作接受度${profile.acceptance || "待补充"}`,
+    "招生数据包：" + formatAdmissionContext(admissionContext || {}),
   ].join("\n");
 }
 
@@ -24,10 +30,20 @@ function extractScoreText(text) {
   };
 }
 
-function mockReply({ message, user, mbti, campuses }) {
+function formatCandidates(admissionContext) {
+  const candidates = admissionContext?.candidates || {};
+  const lines = Object.entries({ rush: "冲刺参考", stable: "稳妥参考", safety: "保底参考" })
+    .flatMap(([bucket, label]) =>
+      (candidates[bucket] || []).map((record) => `${label}：${record.schoolName} ${record.majorName}（${record.admissionYear || "年份待补充"} 年历史数据，最低位次 ${record.minRank || "待补充"}，来源：${record.sourceName || "待补充"}）`)
+    );
+  return lines.length ? lines.join("\n") : "当前未接入可验证的院校录取数据，不能给出具体院校最低分或最低位次，只能先做方向性判断。";
+}
+
+function mockReply({ message, user, mbti, campuses, admissionContext }) {
   const info = extractScoreText(message);
   const profile = user.studentProfile || {};
   const campusText = campuses.map((campus) => `${campus.name}：电话 ${campus.phone}，微信 ${campus.wechat}`).join("\n");
+  const warningText = (admissionContext?.warnings || []).join("；") || `当前建议面向 ${examYear} 年高考，具体录取数据以官方最新发布为准。`;
 
   return `根据你目前提供的信息，我先给出一版初步分析。
 
@@ -44,9 +60,11 @@ function mockReply({ message, user, mbti, campuses }) {
 家庭预算：${profile.budget || "待补充"}
 
 二、关键信息缺口
-正式形成梯度方案前，至少还需要确认：近三年同位次录取数据、招生计划变化、专业组限制、单科或体检要求、是否接受调剂、民办和中外合作边界。
+${warningText}
+正式形成梯度方案前，至少还需要确认：${examYear} 年一分一段表、${examYear} 年招生计划、近三年同位次录取数据、专业组限制、单科或体检要求、是否接受调剂、民办和中外合作边界。
 
 三、院校与专业方向
+${formatCandidates(admissionContext)}
 如果分数和位次信息完整，建议按“冲、稳、保”三档建立院校池：冲刺档关注略高于当前位次的院校和优势专业，稳妥档选择近三年录取位次匹配度高的院校，保底档需要确保专业录取和调剂风险可控。专业选择上，应同时看学科优势、就业路径、城市资源和家庭预算。
 
 四、结合 MBTI 的匹配提示

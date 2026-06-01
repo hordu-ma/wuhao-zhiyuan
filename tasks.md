@@ -162,3 +162,11 @@ npm run dev
 - 生产服务：`wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
 - 生产验证：`/healthz` 返回 `ok: true`，公网首页返回 `HTTP/2 200`，公网 `/api/mbti/questions` 返回 48 道题。
 - 回滚方式：恢复 `src/mbti.js`、`src/server.js`、`public/app.js`、`public/styles.css` 和对应测试文件；生产回滚时保留 `data/`、`reports/`、`node_modules/`。
+
+## 14. 2026-06-01 招生数据与大模型边界
+
+- 当前服务年份显式设为 `EXAM_YEAR=2026` 默认值，prompt 会要求所有结论围绕 2026 年高考表达。
+- 新增 `src/admissions.js` 招生数据层，默认读取 `data/admissions.json` 或 `ADMISSIONS_DATA_PATH`，支持按省份、选科、位次、目标城市和专业兴趣检索候选记录。
+- 新增 `docs/admissions-data.example.json` 作为导入格式参考；真实数据应来自省教育考试院、阳光高考或学校招生网等可追溯来源。
+- `/api/chat/message` 现在会先生成招生数据包，再交给大模型；模型只能解释数据包，不能自行编造院校最低分、最低位次、招生计划、学费或专业组代码。
+- 未配置招生数据时，系统会要求模型只输出方向性建议、风险提示和待补充数据清单。
