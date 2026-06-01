@@ -1,12 +1,14 @@
 {
   "examYear": 2026,
+  "dataMode": "historical_reference",
+  "dataYear": 2025,
   "updatedAt": "2026-06-01T00:00:00.000Z",
-  "sourceName": "示例数据，请替换为省教育考试院、阳光高考或学校招生网等官方来源",
-  "sourceUrl": "https://example.com/replace-with-official-source",
+  "sourceName": "2025年历史录取数据整理，请替换为省教育考试院、阳光高考或学校招生网等官方来源",
+  "sourceUrl": "https://replace-with-official-source.example",
   "records": [
     {
       "province": "山东",
-      "schoolName": "示例大学",
+      "schoolName": "请替换为真实院校名称",
       "majorName": "计算机科学与技术",
       "city": "济南",
       "schoolLevel": "公办本科",
@@ -17,8 +19,8 @@
       "minScore": 610,
       "minRank": 28500,
       "avgRank": 26000,
-      "sourceName": "示例来源，导入真实数据时必须替换",
-      "sourceUrl": "https://example.com/replace-record-source",
+      "sourceName": "请替换为真实来源名称",
+      "sourceUrl": "https://replace-with-record-source.example",
       "updatedAt": "2026-06-01T00:00:00.000Z"
     }
   ]

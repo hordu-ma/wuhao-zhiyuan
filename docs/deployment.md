@@ -129,6 +129,7 @@ curl -I https://zhiyuan.horsduroot.com/
 - 数据格式参考仓库内 `docs/admissions-data.example.json`。
 - 推荐来源优先级：省教育考试院官方发布的一分一段表、招生计划、投档线；阳光高考；高校招生网章程和分专业计划。
 - 更新招生数据后需要重启服务：`systemctl restart wuhao-zhiyuan`。
+- 2026 年正式数据发布前，可导入 2025 年真实历史录取数据并设置 `dataMode=historical_reference`、`dataYear=2025`；系统会按真实院校和专业给出完整建议，并在开头提示“参考 2025 年历史数据，待 2026 年官方数据发布后复核”。
 - 如果没有导入招生数据或没有匹配候选记录，后端会跳过大模型院校建议，返回规则模板和资料清单，不输出具体院校线或计划数。
 
 线索状态筛选值：

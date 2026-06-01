@@ -30,6 +30,8 @@ test("retrieves and buckets admission records by rank", () => {
     filePath,
     JSON.stringify({
       examYear: 2025,
+      dataMode: "historical_reference",
+      dataYear: 2025,
       updatedAt: "2026-06-01T00:00:00.000Z",
       sourceName: "official-test",
       records: [
@@ -52,11 +54,13 @@ test("retrieves and buckets admission records by rank", () => {
   });
 
   assert.equal(context.dataLoaded, true);
+  assert.equal(context.dataMode, "historical_reference");
+  assert.equal(context.dataYear, 2025);
   assert.equal(context.candidates.rush[0].schoolName, "冲刺大学");
   assert.equal(context.candidates.stable[0].schoolName, "稳妥大学");
   assert.equal(context.candidates.safety[0].schoolName, "保底大学");
   assert.equal(hasAdmissionCandidates(context), true);
-  assert.equal(context.warnings.some((warning) => warning.includes("历史参考")), true);
+  assert.equal(context.warnings.some((warning) => warning.includes("2025 年历史录取数据")), true);
 
   if (previousPath) process.env.ADMISSIONS_DATA_PATH = previousPath;
   else delete process.env.ADMISSIONS_DATA_PATH;

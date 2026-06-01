@@ -42,6 +42,8 @@ function loadAdmissionsData() {
       ok: false,
       filePath,
       examYear,
+      dataMode: "missing",
+      dataYear: null,
       updatedAt: "",
       sourceName: "",
       sourceUrl: "",
@@ -57,6 +59,8 @@ function loadAdmissionsData() {
       ok: true,
       filePath,
       examYear: Number(parsed.examYear || parsed.exam_year || examYear),
+      dataMode: parsed.dataMode || parsed.data_mode || "historical_reference",
+      dataYear: toNumber(parsed.dataYear ?? parsed.data_year),
       updatedAt: parsed.updatedAt || parsed.updated_at || "",
       sourceName: parsed.sourceName || parsed.source_name || "",
       sourceUrl: parsed.sourceUrl || parsed.source_url || "",
@@ -68,6 +72,8 @@ function loadAdmissionsData() {
       ok: false,
       filePath,
       examYear,
+      dataMode: "invalid",
+      dataYear: null,
       updatedAt: "",
       sourceName: "",
       sourceUrl: "",
@@ -149,13 +155,16 @@ function retrieveAdmissionContext(profile = {}, limitPerBucket = 5) {
   const warnings = [];
   if (data.warning) warnings.push(data.warning);
   if (data.ok && !totalMatches) warnings.push("招生数据文件已加载，但没有匹配当前省份、选科和偏好的记录。");
-  if (data.ok && data.examYear < examYear) warnings.push(`当前招生数据年份为 ${data.examYear}，只能作为历史参考，不能当作 ${examYear} 年录取结论。`);
+  const referenceYear = data.dataYear || data.examYear;
+  if (data.ok && referenceYear < examYear) warnings.push(`当前使用 ${referenceYear} 年历史录取数据辅助模拟 ${examYear} 年填报，不能当作 ${examYear} 年正式录取结果。`);
 
   return {
     examYear,
     dataFile: data.filePath,
     dataLoaded: data.ok,
+    dataMode: data.dataMode,
     dataExamYear: data.examYear,
+    dataYear: data.dataYear,
     dataUpdatedAt: data.updatedAt,
     sourceName: data.sourceName,
     sourceUrl: data.sourceUrl,

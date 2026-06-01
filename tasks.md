@@ -169,6 +169,7 @@ npm run dev
 - 新增 `src/admissions.js` 招生数据层，默认读取 `data/admissions.json` 或 `ADMISSIONS_DATA_PATH`，支持按省份、选科、位次、目标城市和专业兴趣检索候选记录。
 - 新增 `docs/admissions-data.example.json` 作为导入格式参考；真实数据应来自省教育考试院、阳光高考或学校招生网等可追溯来源。
 - `/api/chat/message` 现在会先生成招生数据包，再交给大模型；模型只能解释数据包，不能自行编造院校最低分、最低位次、招生计划、学费或专业组代码。
+- 2026 年正式数据发布前，可使用 2025 年真实历史录取数据作为 `historical_reference` 模式，让系统体验与正式数据到位后基本一致，只在开头提示参考数据年份。
 - 未配置招生数据或没有匹配候选记录时，后端会跳过大模型院校建议，直接返回规则模板、风险提示和待补充数据清单。
 - 本地测试：`npm test`，11 项通过。
 - 生产已部署：生产代码备份为 `/opt/wuhao-zhiyuan-deploy-backups/code-20260601095549.tar.gz`。
