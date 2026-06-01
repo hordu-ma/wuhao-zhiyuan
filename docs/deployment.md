@@ -219,3 +219,12 @@ curl -fsS https://zhiyuan.horsduroot.com/healthz
 curl -fsS https://zhiyuan.horsduroot.com/api/mbti/questions | grep -o '"id":' | wc -l
 curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
 ```
+
+## 2026-06-01 招生数据 Guardrail 部署项
+
+- 本次变更：服务默认面向 `EXAM_YEAR=2026`；新增 `src/admissions.js` 招生数据层；无招生数据或无匹配候选记录时，后端跳过大模型院校建议，返回规则模板和资料清单。
+- 部署前已备份生产代码到 `/opt/wuhao-zhiyuan-deploy-backups/code-20260601095549.tar.gz`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，11 项通过。
+- `wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
+- 部署验证已通过：公网 `/healthz` 返回 `ok: true`；生产机当前未配置 `data/admissions.json` 时，规则模板明确提示“不能给出具体院校最低分或最低位次”。
+- 数据导入后验证重点：确认 `data/admissions.json` 字段来源可追溯，重启服务后使用测试画像确认 `hasAdmissionCandidates=true`，再检查模型只引用数据包内的学校、专业、年份、位次和来源。
