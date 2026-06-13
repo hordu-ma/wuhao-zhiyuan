@@ -122,6 +122,27 @@ curl -I https://zhiyuan.horsduroot.com/
 - `GET /api/admin/reports.csv`：PDF 报告生成记录与下载路径。
 - `GET /api/admin/export.json`：完整运营分析 JSON，不包含密码哈希和登录 session。
 
+## 个人信息删除与数据保留（PIPL）
+
+- 用户自助删除：个人中心「删除我的数据」按钮，或 `DELETE /api/me`（登录态），会级联删除账号、测评、对话记录、报告记录与对应 PDF 文件。
+- 运营删除：`DELETE /api/admin/users/:id`（请求头 `x-admin-token`），用于处理删除请求或清理误注册数据。
+- 数据保留执行：`POST /api/admin/retention/purge`，默认 dry-run 返回将被清理的用户数；确认后真正删除。
+
+```bash
+# 预览将被清理的过期数据（不删除）
+ssh wuhao-tutor-ecs 'TOKEN=$(grep "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env | cut -d= -f2-); \
+  curl -fsS -X POST -H "x-admin-token: ${TOKEN}" "http://127.0.0.1:18082/api/admin/retention/purge?days=365"'
+# 确认清理
+ssh wuhao-tutor-ecs 'TOKEN=$(grep "^ADMIN_TOKEN=" /etc/wuhao-zhiyuan.env | cut -d= -f2-); \
+  curl -fsS -X POST -H "x-admin-token: ${TOKEN}" "http://127.0.0.1:18082/api/admin/retention/purge?days=365&confirm=true"'
+```
+
+## 单进程约束与启动保护
+
+- 本地 JSON 存储要求单进程运行。服务启动会获取 `data/.store.lock` 独占锁；若已有存活实例，新进程会以非 0 退出码拒绝启动，避免并发写丢数据。
+- 生产环境（`NODE_ENV=production`）未配置 `SESSION_SECRET` 时服务拒绝启动。`/etc/wuhao-zhiyuan.env` 必须同时包含 `NODE_ENV=production` 与 `SESSION_SECRET`。
+- 切勿对该服务使用 pm2 cluster 或多副本部署；水平扩展前需先迁移到带事务的数据库。
+
 ## 招生数据维护
 
 - 当前服务默认面向 `EXAM_YEAR=2026`，可在 `/etc/wuhao-zhiyuan.env` 中显式配置。

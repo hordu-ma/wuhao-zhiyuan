@@ -27,3 +27,5 @@ Recent history uses concise English commit messages such as `Build zhiyuan decis
 ## Security & Configuration Tips
 
 Never commit secrets, API keys, production `.env` files, or generated user data. Configure `SESSION_SECRET`, `DASHSCOPE_API_KEY` or `ALIYUN_API_KEY`, and `DASHSCOPE_MODEL` outside the repository. The app falls back to mock AI replies without an API key; make that explicit when reporting test results. Local persistence uses `data/store.json`, so back it up before destructive data tests.
+
+The local JSON store is correct only under a single process with synchronous `updateStore` mutators: each mutator must run to completion without `await`, and any async work (e.g. DashScope calls) must happen before a final synchronous `updateStore`. The server enforces this with a `data/.store.lock` single-instance lock and by rejecting async mutators; do not run the service with pm2 cluster or multiple replicas. Admin auth accepts the token only via the `x-admin-token` header (never query string), and report PDFs are served through the authenticated `GET /reports/:file` route.

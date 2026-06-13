@@ -208,6 +208,48 @@ npm run dev
 - [x] 本地 `npm test` 全部通过。
 - [x] 生产部署后 `npm test` 通过、`/healthz` 正常、首页 200、`/api/campuses` 与 `/api/mbti/questions` 正常。
 - [x] 生产报告下载鉴权与 mock 摘要表现符合预期。
+
+## 16. 2026-06-13 最佳实践收尾（架构约束 / 合规 / CI / 安全）
+
+承接第 15 节审阅，按「① PII → ② 存储约束 → ③ CI → ④ 安全收尾」推进。
+
+### ① 个人信息合规（PIPL）
+
+- [x] 用户自助删除：`DELETE /api/me` + 个人中心「删除我的数据」按钮，级联清除账号、测评、对话、报告记录与报告 PDF 文件。
+- [x] 运营删除：`DELETE /api/admin/users/:id` 按用户 ID 删除个人数据。
+- [x] 数据保留执行：`POST /api/admin/retention/purge`，默认 dry-run，`confirm=true` 才真正删除；保留天数取 `days` 参数或 `DATA_RETENTION_DAYS`。
+- [x] README 与 `docs/deployment.md` 增加删除权与保留策略说明。
+
+### ② JSON 存储的单进程约束显式化（替代立即上 DB）
+
+- [x] `updateStore` 拒绝异步 mutator（返回 Promise 直接抛错），堵死「await 后半段改动丢失」的未来回归。
+- [x] 启动获取 `data/.store.lock` 独占锁，检测到存活实例即拒绝启动；支持陈旧锁回收与优雅退出释放。
+- [x] `src/store.js` 顶部注释写明该前提与水平扩展需迁移数据库的边界。
+- 说明：本轮**不做** PostgreSQL 迁移——迁移涉及独立数据库、连接密钥、数据搬迁与停机窗口，属于基础设施决策，留作下一阶段独立专项。
+
+### ③ 持续集成
+
+- [x] 新增 `.github/workflows/ci.yml`，在 push / PR 到 `main` 时用 Node 20 跑 `npm ci && npm test`。
+
+### ④ 安全与一致性收尾
+
+- [x] 后台令牌仅接受 `x-admin-token` 请求头，移除 `?token=` query 兜底（含报告下载路由），消除日志/Referer 泄露。
+- [x] 生产环境未配置 `SESSION_SECRET` 时拒绝启动；开发环境给出告警。
+- [x] 补充回归测试：账号删除级联、CSV 公式注入转义、query token 拒绝、会话过期与裁剪、选科匹配假阳性。
+- [x] 清理上一轮公网冒烟遗留的生产测试账号。
+
+### 验证
+
+- [x] 本地 `npm test`：18 项通过。
+- [x] 启动保护本地验证：第二实例被锁拒绝、SIGTERM 优雅释放锁、生产缺 `SESSION_SECRET` 拒绝启动。
+- [x] 生产部署后 `npm test`、`/healthz`、公网全流程、报告下载鉴权、删除接口验证通过。
+
+## 17. Git 仓库统一
+
+- 远端：`git@github.com:hordu-ma/wuhao-zhiyuan.git`（`hordu-ma/wuhao-zhiyuan`）。
+- base-spark：`/home/pgx/code-repos/wuhao-zhiyuan`，已与 `origin/main` 对齐。
+- virtus（历史开发机）：需执行 `git pull --ff-only origin main` 与 base-spark / 远端对齐；若本地有未推送提交，先 `git fetch` 再 rebase 后推送。
+- 生产机 `/opt/wuhao-zhiyuan` 为 rsync 部署目录、非 git 仓库；版本以 GitHub `main` 为准，部署前在 `/opt/wuhao-zhiyuan-deploy-backups/` 留代码包以便回滚。
 - 生产已部署：生产代码备份为 `/opt/wuhao-zhiyuan-deploy-backups/code-20260601095549.tar.gz`。
 - 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，11 项通过。
 - 生产验证：`/healthz` 返回 `ok: true`；当前未配置 `data/admissions.json` 时，规则模板明确提示不能给出具体院校最低分或最低位次。

@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const cookieParser = require("cookie-parser");
-const { readStore, writeStore, updateStore, backupStore, storePath, backupDir } = require("./store");
+const { readStore, writeStore, updateStore, backupStore, acquireSingleInstanceLock, storePath, backupDir } = require("./store");
 const { questions, scoreMbti } = require("./mbti");
 const { buildSystemPrompt, callDashScope, mockReply } = require("./ai");
 const { retrieveAdmissionContext, hasAdmissionCandidates } = require("./admissions");
@@ -66,11 +66,15 @@ function rateLimit({ windowMs, max, keyPrefix }) {
   };
 }
 
-function requireAdmin(req, res, next) {
+function isAdminRequest(req) {
   const token = process.env.ADMIN_TOKEN;
-  if (!token) return res.status(503).json({ error: "未配置 ADMIN_TOKEN，后台不可用" });
-  const provided = req.get("x-admin-token") || req.query.token;
-  if (provided !== token) return res.status(401).json({ error: "后台访问令牌无效" });
+  // 仅接受请求头传令牌：query string 会进入 access log 与 Referer，存在泄露风险。
+  return Boolean(token) && req.get("x-admin-token") === token;
+}
+
+function requireAdmin(req, res, next) {
+  if (!process.env.ADMIN_TOKEN) return res.status(503).json({ error: "未配置 ADMIN_TOKEN，后台不可用" });
+  if (!isAdminRequest(req)) return res.status(401).json({ error: "后台访问令牌无效" });
   next();
 }
 
@@ -232,6 +236,29 @@ function createFullExport(store) {
   };
 }
 
+function deleteUserData(store, userId) {
+  const reportIds = store.reports.filter((report) => report.userId === userId).map((report) => report.id);
+  const removedUser = store.users.some((user) => user.id === userId);
+  store.users = store.users.filter((user) => user.id !== userId);
+  store.sessions = store.sessions.filter((session) => session.userId !== userId);
+  store.mbtiResults = store.mbtiResults.filter((item) => item.userId !== userId);
+  store.chatSessions = store.chatSessions.filter((item) => item.userId !== userId);
+  store.reports = store.reports.filter((report) => report.userId !== userId);
+  store.events = store.events.filter((event) => event.userId !== userId);
+  return { removedUser, reportIds };
+}
+
+function unlinkReportFiles(reportIds = []) {
+  for (const reportId of reportIds) {
+    const filePath = path.join(reportDir, `${reportId}.pdf`);
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (error) {
+      console.error("failed to remove report file:", filePath, error.message);
+    }
+  }
+}
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(process.env.SESSION_SECRET || "dev-session-secret"));
@@ -262,6 +289,14 @@ app.get("/api/me", (req, res) => {
   const mbti = user ? store.mbtiResults.filter((item) => item.userId === user.id).at(-1) || null : null;
   const reports = user ? store.reports.filter((item) => item.userId === user.id) : [];
   res.json({ user: publicUser(user), mbti, reports });
+});
+
+// 用户行使个人信息删除权（PIPL）：清除账号及其测评、对话、报告记录与 PDF 文件。
+app.delete("/api/me", requireUser, (req, res) => {
+  const result = updateStore((store) => deleteUserData(store, req.user.id));
+  unlinkReportFiles(result.reportIds);
+  clearSession(res);
+  res.json({ ok: true, deletedReports: result.reportIds.length });
 });
 
 app.post("/api/auth/register", rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: "register" }), (req, res) => {
@@ -506,12 +541,9 @@ app.get("/reports/:file", (req, res) => {
   const reportId = match[1];
   const store = readStore();
   const report = store.reports.find((item) => item.id === reportId);
-  const adminToken = process.env.ADMIN_TOKEN;
-  const providedToken = req.get("x-admin-token") || req.query.token;
-  const isAdmin = Boolean(adminToken) && providedToken === adminToken;
   const user = getCurrentUser(req, store);
   const isOwner = Boolean(report && user && user.id === report.userId);
-  if (!report || (!isAdmin && !isOwner)) return res.status(403).json({ error: "无权访问该报告" });
+  if (!report || (!isAdminRequest(req) && !isOwner)) return res.status(403).json({ error: "无权访问该报告" });
   const filePath = path.join(reportDir, `${reportId}.pdf`);
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: "报告文件不存在" });
   res.type("application/pdf").sendFile(filePath);
@@ -658,6 +690,44 @@ app.post("/api/admin/backup", requireAdmin, (req, res) => {
   res.json({ ok: true, backupPath });
 });
 
+// 运营按用户 ID 删除个人数据（处理删除请求 / 误注册清理）。
+app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
+  const userId = req.params.id;
+  const result = updateStore((store) => deleteUserData(store, userId));
+  if (!result.removedUser) return res.status(404).json({ error: "用户不存在" });
+  unlinkReportFiles(result.reportIds);
+  res.json({ ok: true, userId, deletedReports: result.reportIds.length });
+});
+
+// 数据保留策略执行：删除注册时间早于保留期的用户数据。默认 dry-run，仅在 confirm=true 时真正删除。
+app.post("/api/admin/retention/purge", requireAdmin, (req, res) => {
+  const days = Number(req.query.days || req.body.days || process.env.DATA_RETENTION_DAYS || 0);
+  if (!Number.isFinite(days) || days <= 0) {
+    return res.status(400).json({ error: "请提供有效的保留天数 days，或配置 DATA_RETENTION_DAYS" });
+  }
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const isStale = (user) => {
+    const created = new Date(user.createdAt).getTime();
+    return Number.isFinite(created) && created < cutoff;
+  };
+  const confirm = req.query.confirm === "true" || req.body.confirm === true || req.body.confirm === "true";
+  if (!confirm) {
+    const stale = readStore().users.filter(isStale);
+    return res.json({ dryRun: true, days, cutoff: new Date(cutoff).toISOString(), matched: stale.length, userIds: stale.map((user) => user.id) });
+  }
+  const reportIds = [];
+  let removedUsers = 0;
+  updateStore((store) => {
+    for (const user of store.users.filter(isStale)) {
+      const result = deleteUserData(store, user.id);
+      reportIds.push(...result.reportIds);
+      removedUsers += 1;
+    }
+  });
+  unlinkReportFiles(reportIds);
+  res.json({ dryRun: false, days, removedUsers, deletedReports: reportIds.length });
+});
+
 app.get(["/assessment/mbti", "/chat", "/profile", "/admin"], (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
@@ -675,11 +745,39 @@ function runCleanup() {
 }
 
 if (require.main === module) {
+  if (!process.env.SESSION_SECRET) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("拒绝启动：生产环境必须显式配置 SESSION_SECRET（用于登录 cookie 签名）");
+      process.exit(1);
+    }
+    console.warn("警告：未配置 SESSION_SECRET，正在使用不安全的开发默认值，请勿用于生产。");
+  }
+
+  let releaseLock = () => {};
+  try {
+    releaseLock = acquireSingleInstanceLock();
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+
   const cleanupTimer = setInterval(runCleanup, 10 * 60 * 1000);
   if (typeof cleanupTimer.unref === "function") cleanupTimer.unref();
-  app.listen(port, "0.0.0.0", () => {
+
+  const server = app.listen(port, "0.0.0.0", () => {
     console.log(`wuhao-zhiyuan listening on http://0.0.0.0:${port}`);
   });
+
+  const shutdown = (signal) => {
+    console.log(`收到 ${signal}，正在优雅退出…`);
+    clearInterval(cleanupTimer);
+    releaseLock();
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("exit", () => releaseLock());
 }
 
 module.exports = { app, sanitizeStudentProfile, createStats };

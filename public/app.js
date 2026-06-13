@@ -442,9 +442,28 @@ async function profilePage() {
             <a class="button secondary" href="/chat">生成报告</a>
           </div>
         </article>
+        <article class="profile-row">
+          <h2>隐私与数据</h2>
+          <p>你可以随时删除账号及全部个人数据（测评、对话记录与咨询报告）。该操作不可恢复。</p>
+          <div class="actions">
+            <button class="button secondary" data-delete-account>删除我的数据</button>
+          </div>
+          <p class="error" data-delete-error></p>
+        </article>
       </div>
     </section>
   `);
+
+  document.querySelector("[data-delete-account]").addEventListener("click", async () => {
+    if (!window.confirm("确认删除账号及全部个人数据？此操作不可恢复。")) return;
+    const errorBox = document.querySelector("[data-delete-error]");
+    try {
+      await api("/api/me", { method: "DELETE" });
+      window.location.href = "/";
+    } catch (err) {
+      errorBox.textContent = err.message;
+    }
+  });
 }
 
 async function adminPage() {

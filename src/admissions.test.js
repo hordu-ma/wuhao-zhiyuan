@@ -66,3 +66,33 @@ test("retrieves and buckets admission records by rank", () => {
   else delete process.env.ADMISSIONS_DATA_PATH;
   delete require.cache[require.resolve("./admissions")];
 });
+
+test("does not treat 生物 as satisfying a 物理 requirement", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "admissions-subject-"));
+  const filePath = path.join(tempDir, "admissions.json");
+  const previousPath = process.env.ADMISSIONS_DATA_PATH;
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({
+      examYear: 2025,
+      dataYear: 2025,
+      records: [
+        { province: "山东", schoolName: "物理必选大学", majorName: "电子信息工程", subjectRequirements: "物理", admissionYear: 2025, minRank: 30000 },
+        { province: "山东", schoolName: "不限选科大学", majorName: "汉语言文学", subjectRequirements: "不限", admissionYear: 2025, minRank: 30000 },
+      ],
+    })
+  );
+  process.env.ADMISSIONS_DATA_PATH = filePath;
+  delete require.cache[require.resolve("./admissions")];
+  const { retrieveAdmissionContext } = require("./admissions");
+
+  // 考生只选了历史/地理/生物，含「生物」但不含「物理」，不应命中要求物理的院校。
+  const context = retrieveAdmissionContext({ province: "山东", subjects: "历史地理生物", rank: "30000" });
+  const schools = Object.values(context.candidates).flat().map((item) => item.schoolName);
+  assert.equal(schools.includes("物理必选大学"), false);
+  assert.equal(schools.includes("不限选科大学"), true);
+
+  if (previousPath) process.env.ADMISSIONS_DATA_PATH = previousPath;
+  else delete process.env.ADMISSIONS_DATA_PATH;
+  delete require.cache[require.resolve("./admissions")];
+});

@@ -362,6 +362,77 @@ test("requires confirmation before generating incomplete reports", async () => {
   }
 });
 
+test("lets a user delete their own account and cascades data", async () => {
+  const { server, baseUrl } = await listen();
+  try {
+    const registered = await request(baseUrl, "/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "注销学生",
+        gender: "男",
+        phone: "13900000005",
+        password: "secret123",
+        privacyConsent: true,
+      }),
+    });
+    assert.equal(registered.response.status, 200);
+    const cookie = getSessionCookie(registered.response);
+    const userId = registered.data.user.id;
+
+    const mbti = await request(baseUrl, "/api/mbti/submit", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ answers: questions.map(() => 4) }),
+    });
+    assert.equal(mbti.response.status, 200);
+
+    const deleted = await request(baseUrl, "/api/me", { method: "DELETE", headers: { Cookie: cookie } });
+    assert.equal(deleted.response.status, 200);
+    assert.equal(deleted.data.ok, true);
+
+    const me = await request(baseUrl, "/api/me", { headers: { Cookie: cookie } });
+    assert.equal(me.data.user, null);
+
+    const admin = await request(baseUrl, "/api/admin/export.json", {
+      headers: { "x-admin-token": "test-admin-token" },
+    });
+    assert.equal(admin.data.users.some((user) => user.phone === "13900000005"), false);
+    assert.equal(admin.data.mbtiResults.some((item) => item.userId === userId), false);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("escapes CSV formula injection and rejects admin token via query string", async () => {
+  const { server, baseUrl } = await listen();
+  try {
+    const registered = await request(baseUrl, "/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "=1+2",
+        gender: "女",
+        phone: "13900000006",
+        password: "secret123",
+        privacyConsent: true,
+      }),
+    });
+    assert.equal(registered.response.status, 200);
+
+    const csvResponse = await fetch(`${baseUrl}/api/admin/leads.csv`, {
+      headers: { "x-admin-token": "test-admin-token" },
+    });
+    const csv = await csvResponse.text();
+    assert.equal(csvResponse.status, 200);
+    assert.match(csv, /"'=1\+2"/);
+
+    // 令牌只能走请求头：query string 形式必须被拒绝。
+    const viaQuery = await request(baseUrl, "/api/admin/summary?token=test-admin-token");
+    assert.equal(viaQuery.response.status, 401);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("rate limits repeated login failures", async () => {
   const { server, baseUrl } = await listen();
   try {
