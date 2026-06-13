@@ -250,3 +250,20 @@ curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
 - `wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
 - 部署验证已通过：公网 `/healthz` 返回 `ok: true`；生产机当前未配置 `data/admissions.json` 时，规则模板明确提示“不能给出具体院校最低分或最低位次”。
 - 数据导入后验证重点：确认 `data/admissions.json` 字段来源可追溯，重启服务后使用测试画像确认 `hasAdmissionCandidates=true`，再检查模型只引用数据包内的学校、专业、年份、位次和来源。
+
+## 2026-06-13 代码审阅修复部署项（第一批）
+
+- 本次变更：修复 AI 对话跨 `await` 丢数据竞态、mock 摘要结构错位、MBTI 计分方向、报告 PDF 鉴权下载、CSV 公式注入、限流桶/会话清理、报告记录先于 PDF 落库、选科匹配假阳性。
+- 部署提交：`e167a8c`。部署前代码备份：`/opt/wuhao-zhiyuan-deploy-backups/code-20260613105311.tar.gz`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，12 项通过。
+- `wuhao-zhiyuan.service` 已重启，状态为 `active` / `enabled`。
+- 公网验证：`/healthz` `ok:true`、首页 `200`、48 题；注册→测评→对话(mock-ai)→报告生成全流程 `200`；报告下载未登录 `403`、归属用户 `200 application/pdf`；后台建议摘要恢复为「方向｜风险｜资料清单」三段。
+
+## 2026-06-13 最佳实践收尾部署项（第二批）
+
+- 本次变更：个人数据删除接口（`DELETE /api/me`、`DELETE /api/admin/users/:id`、`POST /api/admin/retention/purge`）与个人中心删除按钮；JSON 存储单实例锁与异步 mutator 拒绝；后台令牌仅收请求头、移除 `?token=`；生产缺 `SESSION_SECRET` 拒绝启动；新增 GitHub Actions CI。
+- 部署提交：`82fb485`。部署前代码备份：`/opt/wuhao-zhiyuan-deploy-backups/code-20260613112104.tar.gz`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，18 项通过。
+- 启动保护：生产 `NODE_ENV=production` + `SESSION_SECRET` 已配置；`data/.store.lock` 正常生成；连续两次 `systemctl restart` 验证 SIGTERM 优雅释放并重新获取锁。
+- 公网验证：`/healthz` `ok:true`、首页 `200`、校区 2、题目 48；`DELETE /api/me` 自助删除生效；`?token=` 后台访问被拒 `401`；管理员删除接口级联移除报告 PDF 已实测。
+- 运维提示：该服务为单进程约束，**禁止** pm2 cluster 或多副本；新增删除/保留接口见本文件「个人信息删除与数据保留」一节。

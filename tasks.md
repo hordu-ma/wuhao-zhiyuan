@@ -244,6 +244,18 @@ npm run dev
 - [x] 启动保护本地验证：第二实例被锁拒绝、SIGTERM 优雅释放锁、生产缺 `SESSION_SECRET` 拒绝启动。
 - [x] 生产部署后 `npm test`、`/healthz`、公网全流程、报告下载鉴权、删除接口验证通过。
 
+### 生产部署记录（2026-06-13）
+
+- 部署提交：`82fb485`（GitHub `hordu-ma/wuhao-zhiyuan` `main`）。
+- 部署前代码备份：`/opt/wuhao-zhiyuan-deploy-backups/code-20260613112104.tar.gz`。
+- 同步范围：`src/*`、`public/app.js`、`docs/deployment.md`、`README.md`、`AGENTS.md`、`.env.example`、`.github/workflows/ci.yml`；保留生产 `data/`、`reports/`、`node_modules/`。
+- 生产 `NODE_ENV=production` 且 `SESSION_SECRET` 已配置，启动保护不影响服务。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，18 项通过。
+- 单实例锁：`data/.store.lock` 正常生成；连续两次 `systemctl restart` 验证 SIGTERM 优雅释放并重新获取锁，服务保持 `active` / `enabled`。
+- 公网验证：`/healthz` 返回 `ok:true`，首页 `200`，`/api/campuses` 返回 2 个真实校区，`/api/mbti/questions` 返回 48 题；`DELETE /api/me` 自助删除生效（user→null）；`?token=` 形式后台访问被拒 `401`。
+- 数据清理：通过 `DELETE /api/admin/users/:id` 删除上一轮公网冒烟遗留账号（手机号 `13910550400`），级联移除其 1 个报告 PDF，磁盘文件确认删除。
+- 注：本次文档更新仅提交到 GitHub，未重新部署生产，生产保持 `82fb485` 运行状态。
+
 ## 17. Git 仓库统一
 
 - 远端：`git@github.com:hordu-ma/wuhao-zhiyuan.git`（`hordu-ma/wuhao-zhiyuan`）。
