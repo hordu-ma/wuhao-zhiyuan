@@ -83,19 +83,36 @@ function loadAdmissionsData() {
   }
 }
 
+const subjectAliases = [
+  ["物理", "物"],
+  ["化学", "化"],
+  ["生物", "生"],
+  ["历史", "史"],
+  ["地理", "地"],
+  ["政治", "政"],
+];
+
+// 先按完整科目名解析，再用短别名匹配剩余字符，避免「生物」被误判为含「物理」。
+function parseSelectedSubjects(subjects) {
+  let rest = String(subjects || "");
+  const set = new Set();
+  for (const [full] of subjectAliases) {
+    if (rest.includes(full)) {
+      set.add(full);
+      rest = rest.split(full).join(" ");
+    }
+  }
+  for (const [full, short] of subjectAliases) {
+    if (!set.has(full) && rest.includes(short)) set.add(full);
+  }
+  return set;
+}
+
 function subjectMatches(requirements, subjects) {
   const required = String(requirements || "");
   if (!required || /不限|无要求/.test(required)) return true;
-  const selected = String(subjects || "");
-  const aliases = [
-    ["物理", "物"],
-    ["化学", "化"],
-    ["生物", "生"],
-    ["历史", "史"],
-    ["地理", "地"],
-    ["政治", "政"],
-  ];
-  return aliases.every(([full, short]) => !required.includes(full) || selected.includes(full) || selected.includes(short));
+  const selectedSet = parseSelectedSubjects(subjects);
+  return subjectAliases.every(([full]) => !required.includes(full) || selectedSet.has(full));
 }
 
 function textScore(record, profile) {

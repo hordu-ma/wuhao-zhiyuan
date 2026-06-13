@@ -107,11 +107,15 @@ function scoreMbti(answers) {
   const scores = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
 
   questions.forEach((question, index) => {
-    const [, , pole] = question;
+    const [dimension, , pole] = question;
     const value = Number(answers[index] || 0);
-    if (value >= 1 && value <= 5) {
-      scores[pole] += value;
-    }
+    if (value < 1 || value > 5) return;
+    const [left, right] = dimensions[dimension];
+    const opposite = pole === left ? right : left;
+    // 以 3 分为中点的有符号计分：赞同推向本极，反对推向对立极，中点不计分。
+    const delta = value - 3;
+    if (delta >= 0) scores[pole] += delta;
+    else scores[opposite] += -delta;
   });
 
   const type = Object.values(dimensions)

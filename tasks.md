@@ -172,6 +172,42 @@ npm run dev
 - 2026 年正式数据发布前，可使用 2025 年真实历史录取数据作为 `historical_reference` 模式，让系统体验与正式数据到位后基本一致，只在开头提示参考数据年份。
 - 未配置招生数据或没有匹配候选记录时，后端会跳过大模型院校建议，直接返回规则模板、风险提示和待补充数据清单。
 - 本地测试：`npm test`，11 项通过。
+
+## 15. 2026-06-13 代码审阅修复（正确性 / 安全 / 稳定性）
+
+本轮基于完整代码审阅，修复一批正确性、安全与稳定性问题。修复原则：最小改动、不引入新依赖、补齐回归测试。
+
+### P0 正确性 / 数据安全
+
+- [x] **AI 对话跨 `await` 丢数据竞态**（`src/server.js` `/api/chat/message`）：原实现 `readStore()` → `await callDashScope()` → `writeStore()`，在等待大模型的数秒窗口内会用旧快照覆盖其它请求的写入，导致用户、测评、报告记录丢失。改为：先用只读快照构造上下文并调用大模型，落库阶段只用一次同步 `updateStore()` 重新读取最新库再追加用户与助手消息，关闭丢失窗口。
+- [x] **建议摘要解析与 mock 输出结构错位**（`src/ai.js` / `src/server.js`）：`createAdviceSummary` 按「一、考生画像 / 二、关键信息缺口 / 三、院校与专业方向 / 四、志愿风险点 / 五、下一步资料清单」解析，但 `mockReply` 此前用的是另一套七段标题，导致默认 mock 模式下 `risk`、`nextStep` 摘要恒为空。已将 `mockReply` 重写为与 system prompt 强制结构完全一致的六段，使风险点与资料清单摘要可被正确提取。
+- [x] **MBTI 计分方向缺失**（`src/mbti.js`）：原逻辑把 1-5 分直接累加到题目所属极，「非常不同意」一道 E 题仍给 E 加分，量表无法体现倾向方向。改为有符号计分：以 3 分为中点，赞同累加到本极、反对累加到对立极，中点不计分；保持 `type`、`scores`、`preferences`、`summary` 输出结构兼容。
+
+### P1 安全 / 隐私
+
+- [x] **报告 PDF 无鉴权直出**（`src/server.js`）：原 `express.static("/reports")` 把含姓名、手机号、画像的 PDF 整目录公开，仅靠随机 ID 防护。改为鉴权下载路由 `GET /reports/:file`，仅报告归属用户（会话 cookie）或携带 `ADMIN_TOKEN`（请求头或 `?token=`）可下载，其余返回 403。
+- [x] **CSV 公式注入**（`src/server.js` `csvEscape`）：运营导出的姓名、来源等用户可控字段若以 `= + - @` 开头，在 Excel 打开时可能被当作公式执行。已对这类字段加 `'` 前缀转义。
+
+### P2 稳定性 / 资源
+
+- [x] **限流桶内存泄漏**（`src/server.js`）：`rateBuckets` 按 IP 永久累积。新增定期清理过期桶的定时器（仅在服务进程运行时启动，`unref` 不阻塞退出）。
+- [x] **登录会话只增不减**（`src/auth.js` / `src/server.js`）：`getCurrentUser` 增加基于 `createdAt` 的 14 天过期判定，并由清理定时器周期性裁剪过期 `sessions`，避免无限增长与全表扫描变慢。
+- [x] **报告记录先于 PDF 落库**（`src/server.js`）：原先先写库再生成 PDF，生成失败会留下「有记录无文件」脏数据。改为先生成 PDF，成功后再 `updateStore` 落库，并对生成失败返回 500。
+
+### P3 检索质量（小修）
+
+- [x] **选科匹配假阳性**（`src/admissions.js`）：原用短别名 `includes` 时「生物」会命中「物」，使只选生物的考生被判满足「物理」要求。改为先按完整科目名解析考生选科集合，再逐项校验招生要求，消除子串误命中。
+
+### 回归测试
+
+- [x] `src/server.test.js`：新增报告下载鉴权用例（未登录 403、归属用户 200），并断言 mock 摘要的 `risk`、`nextStep` 非空。
+- [x] `src/mbti.test.js`：新增计分方向用例，验证赞同与反对会推向相反极。
+
+### 验证
+
+- [x] 本地 `npm test` 全部通过。
+- [x] 生产部署后 `npm test` 通过、`/healthz` 正常、首页 200、`/api/campuses` 与 `/api/mbti/questions` 正常。
+- [x] 生产报告下载鉴权与 mock 摘要表现符合预期。
 - 生产已部署：生产代码备份为 `/opt/wuhao-zhiyuan-deploy-backups/code-20260601095549.tar.gz`。
 - 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，11 项通过。
 - 生产验证：`/healthz` 返回 `ok: true`；当前未配置 `data/admissions.json` 时，规则模板明确提示不能给出具体院校最低分或最低位次。

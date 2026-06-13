@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const cookieParser = require("cookie-parser");
@@ -6,7 +7,7 @@ const { questions, scoreMbti } = require("./mbti");
 const { buildSystemPrompt, callDashScope, mockReply } = require("./ai");
 const { retrieveAdmissionContext, hasAdmissionCandidates } = require("./admissions");
 const { generateReport, reportDir } = require("./report");
-const { hashPassword, verifyPassword, id, createSession, clearSession, getCurrentUser, publicUser } = require("./auth");
+const { hashPassword, verifyPassword, id, createSession, clearSession, getCurrentUser, pruneExpiredSessions, publicUser } = require("./auth");
 
 const app = express();
 const port = Number(process.env.PORT || 18082);
@@ -204,7 +205,10 @@ function exportUser(user) {
 }
 
 function csvEscape(value) {
-  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+  let text = String(value ?? "");
+  // 防 CSV 公式注入：以 = + - @ 或制表/回车开头的字段在表格软件中可能被当作公式执行。
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replaceAll('"', '""')}"`;
 }
 
 function sendCsv(res, headers, rows) {
@@ -384,40 +388,49 @@ app.post("/api/chat/message", requireUser, rateLimit({ windowMs: 60 * 1000, max:
   if (!mbti) return res.status(409).json({ error: "请先完成 MBTI 测评" });
 
   try {
-    const store = readStore();
-    let session = store.chatSessions.find((item) => item.userId === req.user.id && !item.closedAt);
-    if (!session) {
-      session = {
-        id: id("chat"),
-        userId: req.user.id,
-        messages: [
-          {
-            role: "assistant",
-            content: openingMessage(req.user, mbti),
-            createdAt: new Date().toISOString(),
-          },
-        ],
-        createdAt: new Date().toISOString(),
-      };
-      store.chatSessions.push(session);
-    }
+    // 用只读快照构造大模型上下文，避免在长时调用期间持有整库快照导致并发写入被覆盖。
+    const existingSession = req.store.chatSessions.find((item) => item.userId === req.user.id && !item.closedAt);
+    const userMessage = { role: "user", content, createdAt: new Date().toISOString() };
+    const priorMessages = existingSession
+      ? existingSession.messages
+      : [{ role: "assistant", content: openingMessage(req.user, mbti), createdAt: new Date().toISOString() }];
+    const conversation = [...priorMessages, userMessage];
 
-    session.messages.push({ role: "user", content, createdAt: new Date().toISOString() });
     const admissionContext = retrieveAdmissionContext(req.user.studentProfile || {});
-    const systemPrompt = buildSystemPrompt({ user: req.user, mbti, campuses: store.campuses, admissionContext });
+    const systemPrompt = buildSystemPrompt({ user: req.user, mbti, campuses: req.store.campuses, admissionContext });
     let reply = null;
     let source = "mock-ai";
     if (hasAdmissionCandidates(admissionContext)) {
-      reply = await callDashScope({ systemPrompt, messages: session.messages });
+      reply = await callDashScope({ systemPrompt, messages: conversation });
       source = "dashscope";
     }
     if (!reply) {
-      reply = mockReply({ message: content, user: req.user, mbti, campuses: store.campuses, admissionContext });
+      reply = mockReply({ message: content, user: req.user, mbti, campuses: req.store.campuses, admissionContext });
       source = "mock-ai";
     }
-    session.messages.push({ role: "assistant", content: reply, source, summary: createAdviceSummary(reply), createdAt: new Date().toISOString() });
-    writeStore(store);
-    const result = { session, reply, source };
+    const assistantMessage = { role: "assistant", content: reply, source, summary: createAdviceSummary(reply), createdAt: new Date().toISOString() };
+
+    // 落库阶段重新读取最新库并一次性追加，确保不丢失等待期间发生的其它写入。
+    const result = updateStore((store) => {
+      let session = store.chatSessions.find((item) => item.userId === req.user.id && !item.closedAt);
+      if (!session) {
+        session = {
+          id: id("chat"),
+          userId: req.user.id,
+          messages: [
+            {
+              role: "assistant",
+              content: openingMessage(req.user, mbti),
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          createdAt: new Date().toISOString(),
+        };
+        store.chatSessions.push(session);
+      }
+      session.messages.push(userMessage, assistantMessage);
+      return { session, reply, source };
+    });
     res.json(result);
   } catch (error) {
     console.error(error);
@@ -463,24 +476,46 @@ app.post("/api/report/generate", requireUser, rateLimit({ windowMs: 5 * 60 * 100
     });
   }
 
-  const report = updateStore((store) => {
-    const item = {
-      id: id("report"),
-      userId: req.user.id,
-      chatSessionId: session.id,
-      mbtiId: mbti.id,
-      createdAt: new Date().toISOString(),
-    };
-    store.reports.push(item);
-    store.events.push({ type: "report_generated", userId: req.user.id, reportId: item.id, createdAt: item.createdAt });
-    return item;
-  });
+  const report = {
+    id: id("report"),
+    userId: req.user.id,
+    chatSessionId: session.id,
+    mbtiId: mbti.id,
+    createdAt: new Date().toISOString(),
+  };
 
-  await generateReport({ report, user: req.user, mbti, messages: session.messages, campuses: req.store.campuses });
+  try {
+    // 先生成 PDF，成功后再落库，避免留下「有记录无文件」的脏数据。
+    await generateReport({ report, user: req.user, mbti, messages: session.messages, campuses: req.store.campuses });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "报告生成失败，请稍后重试" });
+  }
+
+  updateStore((store) => {
+    store.reports.push(report);
+    store.events.push({ type: "report_generated", userId: req.user.id, reportId: report.id, createdAt: report.createdAt });
+  });
   res.json({ report, downloadUrl: `/reports/${report.id}.pdf` });
 });
 
-app.use("/reports", express.static(reportDir));
+// 报告含考生姓名、手机号等隐私信息，仅归属用户或携带 ADMIN_TOKEN 可下载。
+app.get("/reports/:file", (req, res) => {
+  const match = /^(report_[a-f0-9]+)\.pdf$/.exec(req.params.file || "");
+  if (!match) return res.status(404).json({ error: "报告不存在" });
+  const reportId = match[1];
+  const store = readStore();
+  const report = store.reports.find((item) => item.id === reportId);
+  const adminToken = process.env.ADMIN_TOKEN;
+  const providedToken = req.get("x-admin-token") || req.query.token;
+  const isAdmin = Boolean(adminToken) && providedToken === adminToken;
+  const user = getCurrentUser(req, store);
+  const isOwner = Boolean(report && user && user.id === report.userId);
+  if (!report || (!isAdmin && !isOwner)) return res.status(403).json({ error: "无权访问该报告" });
+  const filePath = path.join(reportDir, `${reportId}.pdf`);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "报告文件不存在" });
+  res.type("application/pdf").sendFile(filePath);
+});
 
 app.get("/api/admin/summary", requireAdmin, (req, res) => {
   const store = readStore();
@@ -627,7 +662,21 @@ app.get(["/assessment/mbti", "/chat", "/profile", "/admin"], (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
+function runCleanup() {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (bucket.resetAt <= now) rateBuckets.delete(key);
+  }
+  try {
+    updateStore((store) => pruneExpiredSessions(store));
+  } catch (error) {
+    console.error("session cleanup failed:", error.message);
+  }
+}
+
 if (require.main === module) {
+  const cleanupTimer = setInterval(runCleanup, 10 * 60 * 1000);
+  if (typeof cleanupTimer.unref === "function") cleanupTimer.unref();
   app.listen(port, "0.0.0.0", () => {
     console.log(`wuhao-zhiyuan listening on http://0.0.0.0:${port}`);
   });

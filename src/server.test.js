@@ -124,6 +124,16 @@ test("supports the main user flow and admin summary", async () => {
     assert.equal(report.response.status, 200);
     assert.match(report.data.downloadUrl, /^\/reports\/report_/);
 
+    const reportNoAuth = await fetch(`${baseUrl}${report.data.downloadUrl}`);
+    assert.equal(reportNoAuth.status, 403);
+
+    const reportAsOwner = await fetch(`${baseUrl}${report.data.downloadUrl}`, { headers: { Cookie: cookie } });
+    assert.equal(reportAsOwner.status, 200);
+    assert.equal(reportAsOwner.headers.get("content-type"), "application/pdf");
+
+    const reportAsAdmin = await fetch(`${baseUrl}${report.data.downloadUrl}`, { headers: { "x-admin-token": "test-admin-token" } });
+    assert.equal(reportAsAdmin.status, 200);
+
     const admin = await request(baseUrl, "/api/admin/summary", {
       headers: { "x-admin-token": "test-admin-token" },
     });
@@ -173,7 +183,10 @@ test("supports the main user flow and admin summary", async () => {
     assert.equal(fullExport.data.users[0].passwordHash, undefined);
     assert.equal(fullExport.data.sessions, undefined);
     assert.equal(fullExport.data.chatSessions[0].messages.some((message) => message.source === "mock-ai"), true);
-    assert.equal(typeof fullExport.data.chatSessions[0].messages.at(-1).summary.direction, "string");
+    const latestSummary = fullExport.data.chatSessions[0].messages.at(-1).summary;
+    assert.equal(typeof latestSummary.direction, "string");
+    assert.ok(latestSummary.risk.length > 0, "mock 回复应能提取志愿风险点摘要");
+    assert.ok(latestSummary.nextStep.length > 0, "mock 回复应能提取下一步资料清单摘要");
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

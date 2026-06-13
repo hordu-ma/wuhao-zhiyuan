@@ -1,11 +1,18 @@
 const crypto = require("crypto");
 
 const SESSION_COOKIE = "wuhao_zhiyuan_session";
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: "lax",
-  maxAge: 1000 * 60 * 60 * 24 * 14,
+  maxAge: SESSION_TTL_MS,
 };
+
+function isSessionExpired(session) {
+  if (!session) return true;
+  const createdAt = new Date(session.createdAt).getTime();
+  return Number.isFinite(createdAt) && Date.now() - createdAt >= SESSION_TTL_MS;
+}
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
@@ -43,8 +50,14 @@ function getCurrentUser(req, store) {
   const token = req.cookies?.[SESSION_COOKIE];
   if (!token) return null;
   const session = store.sessions.find((item) => item.token === token);
-  if (!session) return null;
+  if (!session || isSessionExpired(session)) return null;
   return store.users.find((item) => item.id === session.userId) || null;
+}
+
+function pruneExpiredSessions(store) {
+  const before = store.sessions.length;
+  store.sessions = store.sessions.filter((session) => !isSessionExpired(session));
+  return before - store.sessions.length;
 }
 
 function publicUser(user) {
@@ -62,11 +75,13 @@ function publicUser(user) {
 
 module.exports = {
   SESSION_COOKIE,
+  SESSION_TTL_MS,
   hashPassword,
   verifyPassword,
   id,
   createSession,
   clearSession,
   getCurrentUser,
+  pruneExpiredSessions,
   publicUser,
 };
