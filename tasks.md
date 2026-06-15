@@ -99,7 +99,7 @@ npm run dev
 - `PORT`：服务端口，默认 `18082`。
 - `SESSION_SECRET`：登录 cookie 签名密钥，生产必须配置。
 - `DASHSCOPE_API_KEY` 或 `ALIYUN_API_KEY`：阿里云 DashScope API key。
-- `DASHSCOPE_MODEL`：模型名，默认 `qwen-plus`。
+- `DASHSCOPE_MODEL`：模型名，默认 `qwen3.7-plus`。
 - `ADMIN_TOKEN`：运营后台访问令牌。
 - `CAMPUS_CONFIG_JSON`：可选，校区配置 JSON 数组。
 
@@ -265,3 +265,10 @@ npm run dev
 - 生产已部署：生产代码备份为 `/opt/wuhao-zhiyuan-deploy-backups/code-20260601095549.tar.gz`。
 - 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，11 项通过。
 - 生产验证：`/healthz` 返回 `ok: true`；当前未配置 `data/admissions.json` 时，规则模板明确提示不能给出具体院校最低分或最低位次。
+
+## 18. 2026-06-15 百炼模型切换
+
+- [x] 代码默认模型从 `qwen-plus` 更新为 `qwen3.7-plus`，生产环境显式配置 `DASHSCOPE_MODEL=qwen3.7-plus`。
+- [x] 使用当前百炼 API key 验证 `qwen3.7-plus` 可调用，接口返回模型为 `qwen3.7-plus`。
+- [x] README、`.env.example` 与部署文档已同步默认模型说明。
+- 回滚方式：将 `/etc/wuhao-zhiyuan.env` 中 `DASHSCOPE_MODEL` 改回上一模型并重启 `wuhao-zhiyuan.service`；如需回滚代码，恢复本次提交前版本后重新部署。

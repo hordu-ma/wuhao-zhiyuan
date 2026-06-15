@@ -28,7 +28,7 @@ http://127.0.0.1:18082
 - `PORT`：服务端口，默认 `18082`
 - `SESSION_SECRET`：登录 cookie 签名密钥
 - `DASHSCOPE_API_KEY` 或 `ALIYUN_API_KEY`：阿里云 DashScope API key
-- `DASHSCOPE_MODEL`：模型名，默认 `qwen-plus`
+- `DASHSCOPE_MODEL`：模型名，默认 `qwen3.7-plus`
 - `ADMIN_TOKEN`：运营后台访问令牌，访问 `/admin` 时使用
 - `CAMPUS_CONFIG_JSON`：可选，JSON 数组形式的校区配置，会覆盖默认咨询点
 - `EXAM_YEAR`：当前服务面向的高考年份，默认 `2026`

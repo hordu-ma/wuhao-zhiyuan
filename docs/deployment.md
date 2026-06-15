@@ -267,3 +267,10 @@ curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
 - 启动保护：生产 `NODE_ENV=production` + `SESSION_SECRET` 已配置；`data/.store.lock` 正常生成；连续两次 `systemctl restart` 验证 SIGTERM 优雅释放并重新获取锁。
 - 公网验证：`/healthz` `ok:true`、首页 `200`、校区 2、题目 48；`DELETE /api/me` 自助删除生效；`?token=` 后台访问被拒 `401`；管理员删除接口级联移除报告 PDF 已实测。
 - 运维提示：该服务为单进程约束，**禁止** pm2 cluster 或多副本；新增删除/保留接口见本文件「个人信息删除与数据保留」一节。
+
+## 2026-06-15 百炼模型切换部署项
+
+- 本次变更：默认百炼模型从 `qwen-plus` 切换为 `qwen3.7-plus`。
+- 生产环境：`/etc/wuhao-zhiyuan.env` 显式配置 `DASHSCOPE_MODEL=qwen3.7-plus`。
+- 验证重点：使用生产 API key 调用百炼 OpenAI 兼容接口，确认响应 `model` 为 `qwen3.7-plus`；重启服务后确认运行中进程环境变量为 `DASHSCOPE_MODEL=qwen3.7-plus`。
+- 回滚方式：将 `/etc/wuhao-zhiyuan.env` 中 `DASHSCOPE_MODEL` 改回上一模型并重启 `wuhao-zhiyuan.service`；代码层可恢复本次提交前版本后重新部署。

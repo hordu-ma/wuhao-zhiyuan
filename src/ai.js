@@ -90,7 +90,7 @@ async function callDashScope({ systemPrompt, messages }) {
   const apiKey = process.env.DASHSCOPE_API_KEY || process.env.ALIYUN_API_KEY;
   if (!apiKey) return null;
 
-  const model = process.env.DASHSCOPE_MODEL || "qwen-plus";
+  const model = process.env.DASHSCOPE_MODEL || "qwen3.7-plus";
   const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
     method: "POST",
     headers: {
