@@ -274,3 +274,10 @@ npm run dev
 - [x] 部署提交：`2d9803a`；生产代码备份：`/opt/wuhao-zhiyuan-deploy-backups/code-20260615143249.tar.gz`；环境文件备份：`/etc/wuhao-zhiyuan.env.20260615143322.bak`。
 - [x] 生产验证：`npm test` 18 项通过；`wuhao-zhiyuan.service` 为 `active` / `enabled`；运行中进程环境为 `DASHSCOPE_MODEL=qwen3.7-plus`；公网 `/healthz` 正常，首页 `HTTP/2 200`。
 - 回滚方式：将 `/etc/wuhao-zhiyuan.env` 中 `DASHSCOPE_MODEL` 改回上一模型并重启 `wuhao-zhiyuan.service`；如需回滚代码，恢复本次提交前版本后重新部署。
+
+## 19. 2026-06-15 模拟招生数据大模型验证
+
+- [x] 在生产机使用当前代码、当前 `DASHSCOPE_MODEL=qwen3.7-plus` 和模拟考生画像/招生数据包，直接调用 `buildSystemPrompt()` + `callDashScope()` 做不落库测试。
+- [x] 测试标记：`wuhao-simulated-advice-2026-06-15T06:45:03.717Z`。
+- [x] 输出结构符合系统约束：包含历史数据年份提示，按“考生画像、关键信息缺口、院校与专业方向、志愿风险点、下一步资料清单、人工咨询引导”六段返回，并只引用数据包中的院校、专业、年份、位次、计划数和来源。
+- [x] 结论：当前模型输出可用，本轮按用户决定不调整 prompt 或业务代码。

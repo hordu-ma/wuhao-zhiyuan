@@ -278,3 +278,11 @@ curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
 - 服务状态：`wuhao-zhiyuan.service` 重启后为 `active` / `enabled`。
 - 验证结果：运行中进程环境变量为 `DASHSCOPE_MODEL=qwen3.7-plus`；使用生产 API key 调用百炼 OpenAI 兼容接口，响应 `model` 为 `qwen3.7-plus` 且回复 `OK`；公网 `/healthz` 返回 `ok:true`，首页返回 `HTTP/2 200`。
 - 回滚方式：将 `/etc/wuhao-zhiyuan.env` 中 `DASHSCOPE_MODEL` 改回上一模型并重启 `wuhao-zhiyuan.service`；代码层可恢复本次提交前版本后重新部署。
+
+## 2026-06-15 模拟招生数据大模型验证
+
+- 测试方式：在生产机使用当前代码直接构造模拟考生画像和模拟招生数据包，调用 `buildSystemPrompt()` + `callDashScope()`，不写入 `data/store.json`。
+- 测试模型：`qwen3.7-plus`。
+- 测试标记：`wuhao-simulated-advice-2026-06-15T06:45:03.717Z`。
+- 验证结果：模型返回历史数据年份提示，并按六段固定结构输出；院校与专业建议引用了数据包提供的学校、专业、年份、最低分、最低位次、招生计划和来源。
+- 本轮决定：模拟输出可用，暂不调整 prompt 或业务代码。
