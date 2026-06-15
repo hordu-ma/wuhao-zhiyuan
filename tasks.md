@@ -271,4 +271,6 @@ npm run dev
 - [x] 代码默认模型从 `qwen-plus` 更新为 `qwen3.7-plus`，生产环境显式配置 `DASHSCOPE_MODEL=qwen3.7-plus`。
 - [x] 使用当前百炼 API key 验证 `qwen3.7-plus` 可调用，接口返回模型为 `qwen3.7-plus`。
 - [x] README、`.env.example` 与部署文档已同步默认模型说明。
+- [x] 部署提交：`2d9803a`；生产代码备份：`/opt/wuhao-zhiyuan-deploy-backups/code-20260615143249.tar.gz`；环境文件备份：`/etc/wuhao-zhiyuan.env.20260615143322.bak`。
+- [x] 生产验证：`npm test` 18 项通过；`wuhao-zhiyuan.service` 为 `active` / `enabled`；运行中进程环境为 `DASHSCOPE_MODEL=qwen3.7-plus`；公网 `/healthz` 正常，首页 `HTTP/2 200`。
 - 回滚方式：将 `/etc/wuhao-zhiyuan.env` 中 `DASHSCOPE_MODEL` 改回上一模型并重启 `wuhao-zhiyuan.service`；如需回滚代码，恢复本次提交前版本后重新部署。

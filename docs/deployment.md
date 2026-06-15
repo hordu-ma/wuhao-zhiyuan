@@ -271,6 +271,10 @@ curl -fsSI https://zhiyuan.horsduroot.com/ | head -n 1
 ## 2026-06-15 百炼模型切换部署项
 
 - 本次变更：默认百炼模型从 `qwen-plus` 切换为 `qwen3.7-plus`。
+- 部署提交：`2d9803a`。部署前代码备份：`/opt/wuhao-zhiyuan-deploy-backups/code-20260615143249.tar.gz`。
 - 生产环境：`/etc/wuhao-zhiyuan.env` 显式配置 `DASHSCOPE_MODEL=qwen3.7-plus`。
-- 验证重点：使用生产 API key 调用百炼 OpenAI 兼容接口，确认响应 `model` 为 `qwen3.7-plus`；重启服务后确认运行中进程环境变量为 `DASHSCOPE_MODEL=qwen3.7-plus`。
+- 生产环境文件备份：`/etc/wuhao-zhiyuan.env.20260615143322.bak`。
+- 生产测试：`PATH=/opt/node-v20/bin:$PATH npm test`，18 项通过。
+- 服务状态：`wuhao-zhiyuan.service` 重启后为 `active` / `enabled`。
+- 验证结果：运行中进程环境变量为 `DASHSCOPE_MODEL=qwen3.7-plus`；使用生产 API key 调用百炼 OpenAI 兼容接口，响应 `model` 为 `qwen3.7-plus` 且回复 `OK`；公网 `/healthz` 返回 `ok:true`，首页返回 `HTTP/2 200`。
 - 回滚方式：将 `/etc/wuhao-zhiyuan.env` 中 `DASHSCOPE_MODEL` 改回上一模型并重启 `wuhao-zhiyuan.service`；代码层可恢复本次提交前版本后重新部署。
